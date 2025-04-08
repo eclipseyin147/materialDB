@@ -1,0 +1,18 @@
+{
+  "name": "cfdmaterial",
+  "version-string": "1.0.0",
+  "builtin-baseline": "83ee120b22571f01ac1e7ea55d4d65f00bbb09e4",
+  "dependencies": [
+    "sqlitecpp",
+    {
+      "name": "boost-filesystem",
+      "version>=": "1.82.0#2"
+    },
+    {
+      "name": "nlohmann-json",
+      "version>=": "3.11.3#1"
+    },
+    "sqlite3",
+    "tinyscheme"
+  ]
+}
