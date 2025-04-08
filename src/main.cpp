@@ -10,13 +10,13 @@
 int main()
 {
     // 读取SCM文件内容
-    std::ifstream scmFile("../propdb.scm");
-    std::stringstream buffer;
-    buffer << scmFile.rdbuf();
-    std::string scmContent = buffer.str();
+//    std::ifstream scmFile("../propdb.scm");
+//    std::stringstream buffer;
+//    buffer << scmFile.rdbuf();
+//    std::string scmContent = buffer.str();
     
     // 解析SCM文件
-    auto materials = CFD_MaterialDB::ScmParser::parse(scmContent);
+    auto materials = CFD_MaterialDB::ScmParser::parse("propdb.scm");
     
     // 创建数据库连接
     sqlite3* db;

@@ -1,4 +1,0 @@
-tinyscheme provides CMake targets:
-
-find_package(tinyscheme CONFIG REQUIRED)
-

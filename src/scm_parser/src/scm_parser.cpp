@@ -49,7 +49,7 @@ namespace CFD_MaterialDB {
 
             // 解析材料名称和类型
             std::string fileContent = sc->vptr->string_value(data);
-if (std::regex_search(fileContent, match, nameTypeRegex)) {
+            if (std::regex_search(fileContent, match, nameTypeRegex)) {
                 material.name = match[1].str();
                 std::string typeStr = match[2].str();
                 std::transform(typeStr.begin(), typeStr.end(), typeStr.begin(), ::toupper);

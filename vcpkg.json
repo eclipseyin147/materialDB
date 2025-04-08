@@ -12,7 +12,6 @@
       "name": "nlohmann-json",
       "version>=": "3.11.3#1"
     },
-    "sqlite3",
-    "tinyscheme"
+    "sqlite3"
   ]
 }
