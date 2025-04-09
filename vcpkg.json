@@ -9,6 +9,14 @@
       "version>=": "1.82.0#2"
     },
     {
+      "name": "boost-spirit",
+      "version>=": "1.82.0#2"
+    },
+    {
+      "name": "boost-regex",
+      "version>=": "1.82.0#2"
+    },
+    {
       "name": "nlohmann-json",
       "version>=": "3.11.3#1"
     },

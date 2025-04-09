@@ -25,10 +25,11 @@ namespace CFD_MaterialDB {
     struct MaterialType {
         MaterialState state;
         int particle_flags;
-        
+
         MaterialType() = default;
+
         explicit MaterialType(int flags) : particle_flags(flags) {}
-        
+
         bool hasParticleType(ParticleType type) const {
             return particle_flags & static_cast<int>(type);
         }
@@ -122,7 +123,7 @@ namespace CFD_MaterialDB {
 
             // 添加对混合物组分和反应式的特殊处理
             if (properties.count("species")) {
-                std::visit([&](auto&& arg) {
+                std::visit([&](auto &&arg) {
                     using T = std::decay_t<decltype(arg)>;
                     if constexpr (std::is_same_v<T, std::string>) {
                         j["species"] = arg;
@@ -130,7 +131,7 @@ namespace CFD_MaterialDB {
                 }, properties.at("species").data);
             }
             if (properties.count("reactions")) {
-                std::visit([&](auto&& arg) {
+                std::visit([&](auto &&arg) {
                     using T = std::decay_t<decltype(arg)>;
                     if constexpr (std::is_same_v<T, std::string>) {
                         j["reactions"] = arg;
@@ -144,7 +145,7 @@ namespace CFD_MaterialDB {
         }
 
         // 从JSON字符串解析
-        void fromJson(const std::string& jsonStr) {
+        void fromJson(const std::string &jsonStr) {
             nlohmann::json j = nlohmann::json::parse(jsonStr);
             name = j["name"].get<std::string>();
             type.state = static_cast<MaterialState>(j["type"].get<int>());
@@ -152,7 +153,7 @@ namespace CFD_MaterialDB {
 
             if (j.contains("properties")) {
                 nlohmann::json propsJson = j["properties"];
-                for (auto& [key, propJson] : propsJson.items()) {
+                for (auto &[key, propJson]: propsJson.items()) {
                     MaterialProperty prop;
                     prop.name = propJson["name"].get<std::string>();
                     prop.unit = propJson["unit"].get<std::string>();
@@ -192,7 +193,7 @@ namespace CFD_MaterialDB {
         }
 
         // 解析SCM格式的热力学数据
-        void parseScmThermoData(const std::string& thermoBlock);
+        void parseScmThermoData(const std::string &thermoBlock);
 
         // 获取属性
         const MaterialProperty &getProperty(const std::string &key) const {

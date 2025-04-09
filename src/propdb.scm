@@ -1,11 +1,4 @@
 (
- (mixture-template
-  mixture
-  (chemical-formula . #f)
-  (species (names h2o o2 n2))
-  (reactions (finite-rate ("reaction-1" () () ((o2 0 1) (h2o 0 1) (n2 0 1)) (stoichiometry "  ") (arrhenius 1e+15 1e+08 0) (mixing-rate 4 0.5) (specified-rate-exponents? . #t) (use-third-body-efficiencies? . #f))) (finite-rate/eddy-dissipation ("reaction-1" () () ((o2 0 1) (h2o 0 1) (n2 0 1)) (stoichiometry "  ") (arrhenius 1e+15 100 0) (mixing-rate 4 0.5) (specified-rate-exponents? . #t) (use-third-body-efficiencies? . #f))) (eddy-dissipation ("reaction-1" () () ((o2 0 1) (h2o 0 1) (n2 0 1)) (stoichiometry "  ") (arrhenius 1e+15 100 0) (mixing-rate 4 0.5) (specified-rate-exponents? . #t) (use-third-body-efficiencies? . #f))))
-  )
- 
  (air-2species-nitrogen
   mixture
   (chemical-formula . #f)
@@ -36,11 +29,6 @@
                           ("reaction-4" ((co2 1 1 1) (o 1 1 1)) ((o2 1 0 1) (co 1 0 1) ) ((o2 0 1)) (stoichiometry "1co2 + 1o --> 1o2 + 1co") (arrhenius 2.54e+8 2.30227e+08 0.5) (mixing-rate 4 0.5) (specified-rate-exponents? . #t) (use-third-body-efficiencies? . #f) (control-temperature 1.0) (backward-reaction? . #t))
                           ("reaction-5" ((co 1 1 1) (o 1 1 1)) ((o2 1 0 1) (c 1 0 1) ) ((o2 0 1)) (stoichiometry "1co + 1o --> 1o2 + 1c") (arrhenius 2.73e+9 5.781876e+08 0.5) (mixing-rate 4 0.5) (specified-rate-exponents? . #t) (use-third-body-efficiencies? . #f) (control-temperature 1.0) (backward-reaction? . #t))
                           ("reaction-6" ((co 1 1 1) (co 1 1 1)) ((co2 1 0 1) (c 1 0 1) ) ((o2 0 1)) (stoichiometry "1co + 1co --> 1co2 + 1c") (arrhenius 2.33e+6 5.46343e+08 0.5) (mixing-rate 4 0.5) (specified-rate-exponents? . #t) (use-third-body-efficiencies? . #f) (control-temperature 1.0) (backward-reaction? . #t) ))))
-
- (particle-mixture-template
- (particle-mixture)
- (species (names h2o<l>))
- )
 
  (acetone
   fluid
@@ -91,10 +79,6 @@
   (specific-heat (constant . 1006.43)(polynomial piecewise-polynomial (100 1000 1161.48214452351 -2.36881890191577 1.48551108358867E-02 -5.03490927522584E-05 9.9285695564579E-08 -1.11109658897742E-10 6.54019600406048E-14 -1.57358768447275E-17)(1000 3000 -7069.81410143802 33.7060506468204 -5.81275953375815E-02 5.42161532229608E-05 -2.936678858119E-08 9.23753316956768E-12 -1.56555339604519E-15 1.11233485020759E-19)) (polynomial nasa-9-piecewise-polynomial (200.000000 1000.000000 2.898903e+06 -5.649626e+04 1.437799e+03 -1.653609e+00 3.062254e-03 -2.279138e-06 6.272365e-10) (1000.000000 6000.000000 6.932494e+07 -3.610532e+05 1.476665e+03 -6.138349e-02 2.027963e-05 -3.075525e-09 1.888054e-13 )) )
   (thermal-conductivity (constant . 0.0242))
   (viscosity (constant . 1.7894e-05) (sutherland 1.716e-5 273.11 110.56) (power-law 1.716e-05 273.11 0.666) (blottner-curve-fit 3.07e-2 2.30e-1 -1.08e1)) 
-      ; viscosity of air at 273 K obtained from Kays & Crawford 
-      ; (Convective Heat & Mass Transfer) & also from White's book on 
-      ; turbulent flow
-      ; 1.7894e-5 Pa.s is the value at 293 K
   (molecular-weight (constant . 28.966))
   (characteristic-vibrational-temperature (constant . 2686))
   (lennard-jones-length (constant . 3.711))
@@ -120,7 +104,6 @@
   (reference-temperature (constant . 298))
   (formation-entropy (constant .  0.1644514E+06))
   (species-phase (constant . 1))
-; Critical Properties Bhatt et al. (2006) - acentric factor missing   
   (critical-pressure (constant . 9.123E+07))
   (critical-temperature (constant . 6299.00))
   (critical-volume (constant . 0.001410)) 
@@ -316,7 +299,6 @@
   (formation-enthalpy (constant . 1.5268467e+09))
   (reference-temperature (constant . 298))
   (formation-entropy (constant .  0.1662933E+06))
-  ;; critical properties assumed the same as argon
   (critical-pressure (constant . 4.8980e6))
   (critical-temperature (constant . 150.86))
   (acentric-factor (constant . -0.002))
@@ -346,7 +328,6 @@
   (argon-liquid
   (fluid inert-particle droplet-particle)
   (chemical-formula . ar<l>)
-    ;; all properties from http://webbook.nist.gov constant properties at NBP
   (density (constant . 1395))
   (specific-heat (constant . 1117.2)(polynomial piecewise-linear (87 . 1117) (90 . 1121) (100 . 1154) (110 . 1218) (120 . 1332) (130 . 1564) ))
   (thermal-conductivity (constant . 0.12565))
@@ -371,7 +352,6 @@
   (formation-enthalpy (constant . 3.1580237e+08))
   (reference-temperature (constant . 298))
   (formation-entropy (constant .  0.1821283E+06))
-   ; Critical Properties from Somayajulu (1989)  acentric factor missing
   (critical-pressure (constant . 22.2950e6))
   (critical-temperature (constant . 1673.02))
   (critical-volume (constant . 0.000467))
@@ -8037,9 +8017,7 @@ fluid
  (reactions (finite-rate ("reaction-1" ((co<nh2>2 1. 1. 1)) ((nh3 1. 0. 1) (hnco 1. 0. 1)) ((o2 0 1) (h2o 0 1) (co2 0 1) (n2 0 1)) (stoichiometry "1co<nh2>2 --> 1nh3 + 1hnco") (arrhenius 1000000000000000. 100. 0.) (mixing-rate 4. 0.5) (use-third-body-efficiencies? . #f)) ("reaction-2" ((hnco 1. 1. 1) (h2o 1. -.001 1)) ((nh3 1. 0. 1) (co2 1. 0. 1)) ((o2 0 1) (co<nh2>2 1. 1) (n2 0 1)) (stoichiometry "1hnco + 1h2o --> 1nh3 + 1co2") (arrhenius 250000. 62220000. 0.) (mixing-rate 4. 0.5) (use-third-body-efficiencies? . #f))) (eddy-dissipation ("reaction-1" ((co<nh2>2 1. 1. 1)) ((nh3 1. 0. 1) (hnco 1. 0. 1)) ((o2 0 1) (h2o 0 1) (co2 0 1) (n2 0 1)) (stoichiometry "1co<nh2>2 --> 1nh3 + 1hnco") (arrhenius 1000000000000000. 100. 0.) (mixing-rate 4. 0.5) (use-third-body-efficiencies? . #f)) ("reaction-2" ((hnco 1. 1. 1) (h2o 1. -.001 1)) ((nh3 1. 0. 1) (co2 1. 0. 1)) ((o2 0 1) (co<nh2>2 1. 1) (n2 0 1)) (stoichiometry "1hnco + 1h2o --> 1nh3 + 1co2") (arrhenius 250000. 62220000. 0.) (mixing-rate 4. 0.5) (use-third-body-efficiencies? . #f))) (finite-rate/eddy-dissipation ("reaction-1" ((co<nh2>2 1. 1. 1)) ((nh3 1. 0. 1) (hnco 1. 0. 1)) ((o2 0 1) (h2o 0 1) (co2 0 1) (n2 0 1)) (stoichiometry "1co<nh2>2 --> 1nh3 + 1hnco") (arrhenius 1000000000000000. 100. 0.) (mixing-rate 4. 0.5) (use-third-body-efficiencies? . #f)) ("reaction-2" ((hnco 1. 1. 1) (h2o 1. -.001 1)) ((nh3 1. 0. 1) (co2 1. 0. 1)) ((o2 0 1) (co<nh2>2 1. 1) (n2 0 1)) (stoichiometry "1hnco + 1h2o --> 1nh3 + 1co2") (arrhenius 250000. 62220000. 0.) (mixing-rate 4. 0.5) (use-third-body-efficiencies? . #f)))) 
 )
 
-;; urea properties computed according to the following data that are average values taken from nist webbook
-;; enthalpy of fusion 14 kJ/mol
-;; enthalpy of sublimation 97.9 kJ/mol
+
 
  (urea-solid
   (fluid combusting-particle inert-particle)
@@ -8067,8 +8045,8 @@ fluid
  (urea-liquid
   (fluid inert-particle droplet-particle)
   (chemical-formula . co<nh2>2<l>)
-  (density (constant . 1280)) ; to yield wt average AdBlue density 1085 as in BASF datasheet
-  (specific-heat (constant . 2375)) ; to yield wt average AdBlue cp 3640 as in BASF datasheet
+  (density (constant . 1280)) 
+  (specific-heat (constant . 2375)) 
   (latent-heat (constant . 1.398E6)) ; computed as (enthalpy of sublimation - enthalpy of fusion) from nist 
 ;  (latent-heat (constant . 2.82E6)) ; as above but this value also contains the decomposition enthalpy to NH3 and HNCO
 ;  (heat-of-pyrolysis (constant . 1.42E6)) ; must be used to substract the decomposition enthalpy added above
@@ -8091,15 +8069,14 @@ fluid
 (urea-vapor
  fluid
  (chemical-formula . co<nh2>2)
- (density (constant . 2.45422)) ;computed using state eq at 298 K and 1 bar
+ (density (constant . 2.45422)) 
  (specific-heat (polynomial piecewise-polynomial (300 1000 409.39931 0.40185458 -0.00020235431 -1.7605357e-07 1.4747213e-10) (1000 5000 506.21987 0.089793697 -1.5987382e-05 1.1388407e-10 1.7822804e-13)) (constant . 537))
- (thermal-conductivity (constant . 0.0104)) ;not known yet
- (viscosity (constant . 1.2e-05)) ; not known yet
+ (thermal-conductivity (constant . 0.0104)) 
+ (viscosity (constant . 1.2e-05)) 
  (molecular-weight (constant . 60.05583))
- (formation-enthalpy (constant . -2.355e+08)) ;this value is from nist
+ (formation-enthalpy (constant . -2.355e+08)) 
  (reference-temperature (constant . 298))
- (formation-entropy (constant . 228064.2)) ; not confirmed
-; Critical Properties from Cranium Ver. 1.0.3
+ (formation-entropy (constant . 228064.2)) 
   (critical-pressure (constant . 7.735E+06))
   (critical-temperature (constant . 639.74))
   (acentric-factor (constant . 0.562))
@@ -8125,7 +8102,6 @@ fluid
  (viscosity (constant . 0.001003))
  (dpm-surften (constant . 0.0719404) (polynomial piecewise-polynomial (50 641 6.49503e-02 2.46819e-04 -9.28884e-07 6.01831e-10)))
  (vapor-pressure (polynomial piecewise-linear (273 . 610) (274 . 657) (275 . 706) (280 . 1002) (284 . 1329) (290 . 1937) (295 . 2658) (300 . 3565) (307 . 5316) (310 . 6275) (315 . 7974) (320 . 10612) (325 . 13289) (330 . 17308) (340 . 26579) (350 . 41877) (356 . 53158) (360 . 62498) (370 . 90935) (371 . 94295) (372 . 97757) (373 . 101000) (393 . 202000) (425 . 505000) (453 . 1000000) (486 . 2000000) (507 . 3000000) (537 . 5000000) (584 . 10000000) (615 . 15000000) (639 . 20000000) (647.14 . 22064000))(constant . 2658) ) 
- ;; http://webbook.nist.gov
  (molecular-weight (constant . 18.0152))
  (species-phase (constant . 1))
  (formation-enthalpy (constant . -2.8584122e+08))

@@ -10,11 +10,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # 查找依赖库
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 find_package(SQLiteCpp CONFIG REQUIRED)
-find_package(Boost 1.82 REQUIRED COMPONENTS filesystem)
+find_package(Boost 1.82 REQUIRED COMPONENTS filesystem spirit regex)
+
 include_directories(${SQLITECPP_INCLUDE_DIR} ${SQLite3_INCLUDE_DIRS})
 
 
-add_subdirectory(src/thirdParty/tinyscheme)
+#add_subdirectory(src/thirdParty/tinyscheme)
 
 # 可执行文件配置
 add_executable(material_db
@@ -36,10 +37,10 @@ target_include_directories(material_db
 
 target_link_libraries(material_db
         PRIVATE
-        tinyscheme
         unofficial::sqlite3::sqlite3
         SQLiteCpp
         Boost::filesystem
+        Boost::spirit
 )
 
 # 包含目录
