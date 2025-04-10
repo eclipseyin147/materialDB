@@ -6,9 +6,6 @@
 #include <variant>
 #include <array>
 #include <nlohmann/json.hpp>
-
-namespace CFD_MaterialDB {
-
     enum class MaterialState {
         FLUID,
         SOLID,
@@ -209,6 +206,7 @@ namespace CFD_MaterialDB {
         std::string name;
         MaterialType type;
         std::string description;
+        std::string chemical_formula;
         std::unordered_map<std::string, MaterialProperty> properties;
 
     private:
@@ -217,4 +215,3 @@ namespace CFD_MaterialDB {
         void parseScmTransportData(const std::string &transportBlock);
     };
 
-} // namespace CFD_MaterialDB

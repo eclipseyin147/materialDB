@@ -6,50 +6,56 @@
 #include <memory>
 #include <iostream>
 #include <nlohmann/json.hpp>
-
+#include <boost/fusion/adapted.hpp>
 #include "material.h"
-
-namespace CFD_MaterialDB {
-
-    struct PropertyPair;
-
-    struct PropertyValue {
-        std::string string_value;
-        double numeric_value = 0.0;
-        bool is_numeric = false;
-        bool is_none = false;
-        bool has_nested = false;
-        std::shared_ptr<std::vector<PropertyPair>> nested_properties;
-
-        PropertyValue() : nested_properties(std::make_shared<std::vector<PropertyPair>>()) {}
-    };
+#include <optional>
+#include <boost/spirit/home/x3/support/ast/variant.hpp>
+#include <boost/spirit/home/x3/string/symbols.hpp>
+#include <boost/spirit/home/x3/support/utility/error_reporting.hpp>
+namespace x3 = boost::spirit::x3;
+enum coefficientType {
+    CONSTANT,
+    polynomialT,
+    polynomialTPieceLinearT,                 ///< std::vector<double>
+    polynomialTPiecePolyT,   ///< std::vector<std::array<double, 7>>
+    nasa9PiecePolyT   ///< std::vector<std::array<double, 9>>
+};
 
 
-    struct PropertyPair {
-        std::string name;
-        PropertyValue value;
-    };
+
+void init_symbols() ;
 
 
-    struct MaterialData {
-        std::string name;
-        std::string type;
-        std::vector<PropertyPair> properties;
-    };
+// 属性参数：支持单值或列表
+struct Parameter {
+    coefficientType coeff;
+    std::vector<std::vector<double>> values;
+    std::string string_value; // 用于存储字符串值，如化学式
+};
+
+// 属性定义：如 (density (constant 1.225))
+struct Property {
+    std::string name;
+    std::vector<Parameter> parameters;
+};
 
 
-    class ScmParser {
-    public:
-        std::vector<Material> parse(const std::string &filename);
+struct MaterialData {
+    std::string name;
+    std::string type;
+    std::optional<std::string> chemical_formula;
+    std::vector<Property> properties;
+};
 
-    private:
-        void processProperties(Material &material, const std::vector<PropertyPair> &properties);
+using error_handler_type = x3::error_handler<std::string::iterator>;
 
-        std::string processNestedProperties(const std::shared_ptr<std::vector<PropertyPair>> &nested_props);
-        std::string processNestedProperties(const std::vector<std::pair<std::string, PropertyValue>> &nested_props);
+class ScmParser
+        {
+public:
+    std::vector<Material> parse(const std::string &filename);
 
-        // Add these method declarations in your ScmParser class:
-void processSpeciesProperty(Material &material, const std::shared_ptr<std::vector<PropertyPair>> &species_props);
-void processReactionsProperty(Material &material, const std::shared_ptr<std::vector<PropertyPair>> &reactions_props);
-    };
-}
+private:
+    void processProperties(Material &material, const MaterialData &mat_data);
+};
+
+

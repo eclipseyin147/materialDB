@@ -1,7 +1,7 @@
 #include "material.h"
 #include <regex>
 
-namespace CFD_MaterialDB {
+
 
 void Material::parseScmThermoData(const std::string& thermoBlock) {
     // 解析热力学数据块
@@ -33,4 +33,3 @@ void Material::parseScmThermoData(const std::string& thermoBlock) {
     }
 }
 
-}

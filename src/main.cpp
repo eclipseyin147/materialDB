@@ -16,7 +16,7 @@ int main()
 //    std::string scmContent = buffer.str();
     
     // 解析SCM文件
-    CFD_MaterialDB::ScmParser parser;
+    ScmParser parser;
     auto materials = parser.parse("propdb.scm");
     
     // 创建数据库连接
@@ -33,9 +33,9 @@ int main()
     
     // 插入材料数据
     CFD_MaterialDB::DatabaseManager dbManager("materials.db");
-    for (const auto& material : materials) {
-        dbManager.insertMaterial(material);
-    }
+//    for (const auto& material : materials) {
+//        dbManager.insertMaterial(material);
+//    }
     
     sqlite3_close(db);
     return 0;
