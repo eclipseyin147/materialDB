@@ -64,6 +64,13 @@ struct debug_handler {
     }
 };
 
+struct parameter_class;
+struct simple_parameter_class;
+struct chemical_formula_property_class;
+struct general_property_class;
+struct property_class;
+struct material_class;
+struct scm_file_class;
 
 
 
@@ -71,150 +78,128 @@ auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
                             = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}()") | x3::char_("<>") | x3::char_("<s>"))];
 
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
-    = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
+                                = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
+
 auto const boolean = x3::rule<struct boolean_, bool>{"boolean"}
-    = x3::lit("#t")[([](auto &ctx) { x3::_val(ctx) = true; })]
-    | x3::lit("#f")[([](auto &ctx) { x3::_val(ctx) = false; })];
+                             = x3::lit("#t")[([](auto &ctx) { x3::_val(ctx) = true; })]
+                               | x3::lit("#f")[([](auto &ctx) { x3::_val(ctx) = false; })];
+
 auto const number = x3::rule<struct number_, double>{"number"}
-    = x3::double_ | x3::int_;
+                            = x3::double_ | x3::int_;
+
 auto const vector1d = x3::rule<class vector1d_, std::vector<double>>{}
-    = '(' >> *x3::double_ >> ')';
+                              = '(' >> *x3::double_ >> ')';
+
 auto const vector2d = x3::rule<class vector2d_, std::vector<std::vector<double>>>{}
-    = '(' >> *vector1d >> ')';
-
-
-// 首先声明所有规则
-struct parameter_class;
-auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"};
-
-struct simple_parameter_class;
-auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simple_parameter"};
-
-struct chemical_formula_property_class;
-auto const chemical_formula_property = x3::rule<chemical_formula_property_class, Property>{"chemical_formula_property"};
-
-struct general_property_class;
-auto const general_property = x3::rule<general_property_class, Property>{"general_property"};
-
-struct property_class;
-auto const property = x3::rule<property_class, Property>{"property"};
-
-struct material_class;
-auto const material = x3::rule<material_class, MaterialData>{"material"};
-
-// 然后定义规则
-auto const parameter_def =
-    '('
-    >> coefficient_type_symbols
-    >> (vector2d | ('.' >> (x3::double_[([](auto &ctx) {
-        auto &param = x3::_val(ctx);
-        param.coeff = CONSTANT;
-        param.values = {{x3::_attr(ctx)}};
-        std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
-    })] | symbol[([](auto &ctx) {
-        auto &param = x3::_val(ctx);
-        param.coeff = CONSTANT;
-        param.values = {{-999.0}};
-        param.string_value = x3::_attr(ctx);
-        std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
-    })] | boolean[([](auto &ctx) {
-        auto &param = x3::_val(ctx);
-        param.coeff = CONSTANT;
-        param.string_value = x3::_attr(ctx) ? "#t" : "#f";
-        param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
-        std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
-    })])))
-    >> ')';
-
-// 添加一个简化的参数规则，用于处理 (chemical-formula . #f) 这样的格式
-auto const simple_parameter_def =
-    '.' >> (x3::double_[([](auto &ctx) {
-        auto &param = x3::_val(ctx);
-        param.coeff = CONSTANT;
-        param.values = {{x3::_attr(ctx)}};
-        std::cout << "Parsed simple parameter with double value: " << x3::_attr(ctx) << std::endl;
-    })] | symbol[([](auto &ctx) {
-        auto &param = x3::_val(ctx);
-        param.coeff = CONSTANT;
-        param.values = {{-999.0}};
-        param.string_value = x3::_attr(ctx);
-        std::cout << "Parsed simple parameter with symbol value: " << x3::_attr(ctx) << std::endl;
-    })] | boolean[([](auto &ctx) {
-        auto &param = x3::_val(ctx);
-        param.coeff = CONSTANT;
-        param.string_value = x3::_attr(ctx) ? "#t" : "#f";
-        param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
-        std::cout << "Parsed simple parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
-    })]);
-
-auto const chemical_formula_property_def =
-    (x3::lit("chemical-formula") >> simple_parameter)[([](auto &ctx) {
-        auto &prop = x3::_val(ctx);
-        prop.name = "chemical-formula";
-        prop.parameters.push_back(x3::_attr(ctx));
-        std::cout << "Parsed chemical formula property with parameter" << std::endl;
-    })];
-
-auto const general_property_def =
-    symbol[([](auto &ctx) {
-        auto& prop = x3::_val(ctx);
-        prop.name = x3::_attr(ctx);
-        std::cout << "Setting property name: " << prop.name << std::endl;
-    })] >> (simple_parameter[([](auto &ctx) {
-        auto& prop = x3::_val(ctx);
-        prop.parameters.push_back(x3::_attr(ctx));
-        std::cout << "Added simple parameter to property " << prop.name << std::endl;
-    })] | *parameter[([](auto &ctx) {
-        auto& prop = x3::_val(ctx);
-        prop.parameters.push_back(x3::_attr(ctx));
-        std::cout << "Added parameter to property " << prop.name << std::endl;
-    })]);
-
-auto const property_def =
-    '(' >> (chemical_formula_property[([](auto &ctx) {
-        const Property& prop = x3::_attr(ctx);
-        std::cout << "Parsed chemical formula property: " << prop.name
-                  << " with " << prop.parameters.size() << " parameters" << std::endl;
-    })] | general_property[([](auto &ctx) {
-        const Property& prop = x3::_attr(ctx);
-        std::cout << "Parsed general property: " << prop.name
-                  << " with " << prop.parameters.size() << " parameters" << std::endl;
-    })]) >> ')';
-
-auto const material_def =
-    '(' >> symbol[([](auto &ctx) {
-        auto& mat = x3::_val(ctx);
-        mat.name = x3::_attr(ctx);
-        std::cout << "Parsed material name: " << mat.name << std::endl;
-    })] >> symbol[([](auto &ctx) {
-        auto& mat = x3::_val(ctx);
-        mat.type = x3::_attr(ctx);
-        std::cout << "Parsed material type: " << mat.type << std::endl;
-    })] >> *property[([](auto &ctx) {
-        auto& mat = x3::_val(ctx);
-        const Property& prop = x3::_attr(ctx);
-        mat.properties.push_back(prop);
-        std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
-    })] >> ')';
-
-// 最后将定义与声明关联起来
-BOOST_SPIRIT_DEFINE(parameter, simple_parameter, chemical_formula_property, general_property, property, material);
-
+                              = '(' >> *vector1d >> ')';
 
 auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
 
-///< SCM file rule
-auto const scm_file_def = x3::skip(comment | x3::space)[*material[([](auto &ctx) {
-    const auto& mat = x3::_attr(ctx);
-    std::cout << "Successfully parsed material: " << mat.name
-              << " with " << mat.properties.size() << " properties" << std::endl;
-    x3::_val(ctx).push_back(mat);
-})]];
-
-struct scm_file_class;
-auto const scm_file = x3::rule<scm_file_class, std::vector<MaterialData>>{"scm_file"} = scm_file_def;
 
 
+auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
+                               = '('
+                >> coefficient_type_symbols
+                >> (vector2d | ('.' >> (x3::double_[([](auto &ctx) {
+                    auto &param = x3::_val(ctx);
+                    param.coeff = CONSTANT;
+                    param.values = {{x3::_attr(ctx)}};
+                    std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
+                })] | symbol[([](auto &ctx) {
+                    auto &param = x3::_val(ctx);
+                    param.coeff = CONSTANT;
+                    param.values = {{-999.0}};
+                    param.string_value = x3::_attr(ctx);
+                    std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
+                })] | boolean[([](auto &ctx) {
+                    auto &param = x3::_val(ctx);
+                    param.coeff = CONSTANT;
+                    param.string_value = x3::_attr(ctx) ? "#t" : "#f";
+                    param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+                    std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
+                })])))
+                >> ')';
+
+// 定义简化参数规则
+auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simple_parameter"}
+                                      = '.' >> (x3::double_[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param.coeff = CONSTANT;
+            param.values = {{x3::_attr(ctx)}};
+            std::cout << "Parsed simple parameter with double value: " << x3::_attr(ctx) << std::endl;
+        })] | symbol[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param.coeff = CONSTANT;
+            param.values = {{-999.0}};
+            param.string_value = x3::_attr(ctx);
+            std::cout << "Parsed simple parameter with symbol value: " << x3::_attr(ctx) << std::endl;
+        })] | boolean[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param.coeff = CONSTANT;
+            param.string_value = x3::_attr(ctx) ? "#t" : "#f";
+            param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+            std::cout << "Parsed simple parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
+        })]);
+
+// 定义化学式属性规则
+auto const chemical_formula_property = x3::rule<chemical_formula_property_class, Property>{"chemical_formula_property"}
+                                               = (x3::lit("chemical-formula") >> simple_parameter)[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            prop.name = "chemical-formula";
+            prop.parameters.push_back(x3::_attr(ctx));
+            std::cout << "Parsed chemical formula property with parameter" << std::endl;
+        })];
+
+// 定义通用属性规则
+auto const general_property = x3::rule<general_property_class, Property>{"general_property"}
+                                      = symbol[([](auto &ctx) {
+            auto& prop = x3::_val(ctx);
+            prop.name = x3::_attr(ctx);
+            std::cout << "Setting property name: " << prop.name << std::endl;
+        })] >> (simple_parameter[([](auto &ctx) {
+            auto& prop = x3::_val(ctx);
+            prop.parameters.push_back(x3::_attr(ctx));
+            std::cout << "Added simple parameter to property " << prop.name << std::endl;
+        })] | *parameter[([](auto &ctx) {
+            auto& prop = x3::_val(ctx);
+            prop.parameters.push_back(x3::_attr(ctx));
+            std::cout << "Added parameter to property " << prop.name << std::endl;
+        })]);
+
+// 定义属性规则
+auto const property = x3::rule<property_class, Property>{"property"}
+                              = '(' >> (chemical_formula_property[([](auto &ctx) {
+            const Property& prop = x3::_attr(ctx);
+            std::cout << "Parsed chemical formula property: " << prop.name
+                      << " with " << prop.parameters.size() << " parameters" << std::endl;
+        })] | general_property[([](auto &ctx) {
+            const Property& prop = x3::_attr(ctx);
+            std::cout << "Parsed general property: " << prop.name
+                      << " with " << prop.parameters.size() << " parameters" << std::endl;
+        })]) >> ')';
+
+// 定义材料规则
+auto const material = x3::rule<material_class, MaterialData>{"material"}
+                              = '(' >> symbol[([](auto &ctx) {
+            auto& mat = x3::_val(ctx);
+            mat.name = x3::_attr(ctx);
+            std::cout << "Parsed material name: " << mat.name << std::endl;
+        })] >> symbol[([](auto &ctx) {
+            auto& mat = x3::_val(ctx);
+            mat.type = x3::_attr(ctx);
+            std::cout << "Parsed material type: " << mat.type << std::endl;
+        })] >> *property[([](auto &ctx) {
+            auto& mat = x3::_val(ctx);
+            const Property& prop = x3::_attr(ctx);
+            mat.properties.push_back(prop);
+            std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
+        })] >> ')';
+
+// 定义 SCM 文件规则
+auto const scm_file = x3::rule<scm_file_class, std::vector<MaterialData>>{"scm_file"}
+                              = x3::skip(comment | x3::space)[*material];
+
+// 将定义与声明关联起来
 
 std::vector<Material> ScmParser::parse(const std::string &filename) {
     std::vector<Material> materials_out;
@@ -242,6 +227,9 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
         std::cout << "Parse success: " << success << std::endl;
         std::cout << "Parsed materials count: " << parsed_materials.size() << std::endl;
         std::cout << "Remaining unparsed: " << (iter != end) << std::endl;
+        if (iter != end) {
+            std::cout << "Remaining text: '" << std::string(iter, std::min(iter + 50, end)) << "...'" << std::endl;
+        }
 
         if (!success || iter != end) {
             std::cerr << "解析失败 at: '" << std::string(iter, std::min(iter + 20, end)) << "...'"
@@ -250,8 +238,9 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
         }
 
         // 添加日志，输出每个解析到的材料
-        for (size_t i = 0; i < parsed_materials.size(); ++i) {
-            std::cerr << "Material " << i << ": " << parsed_materials[i].name
+        for (size_t i = 0; i < parsed_materials.size(); ++i)
+        {
+            std::cout << "Material " << i << ": " << parsed_materials[i].name
                       << ", Type: " << parsed_materials[i].type
                       << ", Properties count: " << parsed_materials[i].properties.size() << std::endl;
         }
@@ -289,7 +278,8 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
         const auto &key = prop.name;
 
         // 处理化学式
-        if (key == "chemical-formula" && !prop.parameters.empty()) {
+        if (key == "chemical-formula" && !prop.parameters.empty())
+        {
             const auto &param = prop.parameters[0];
             if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
                 param.values[0][0] == -999.0 && !param.string_value.empty()) {
@@ -314,6 +304,53 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
             }
             continue;
         }
+        if(key== "density" || key == "specific-heat-ratio" || key == "molecular-weight")
+        {
+            const auto &param = prop.parameters[0];
+            if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
+                param.values[0][0] == -999.0 && !param.string_value.empty()) {
+                // 使用 MaterialProperty 结构
+                MaterialProperty mp;
+                mp.name = key;
+                mp.unit = "";
+                mp.type = "string";
+                mp.data = param.string_value;
+                material.properties[key] = mp;
+
+            }
+            else if(param.coeff == polynomialTPieceLinearT)
+            {
+                // 使用 MaterialProperty 结构
+                MaterialProperty mp;
+                mp.name = key;
+                mp.unit = "";
+                mp.type = "string";
+                mp.data = param.string_value;
+                material.properties[key] = mp;
+            }
+            else if(param.coeff == polynomialTPiecePolyT)
+            {
+                // 使用 MaterialProperty 结构
+                MaterialProperty mp;
+                mp.name = key;
+                mp.unit = "";
+                mp.type = "string";
+                mp.data = param.string_value;
+                material.properties[key] = mp;
+            }
+            else if (param.string_value == "#f" || param.string_value == "#t") {
+                // 处理 (chemical-formula . #f) 这种情况
+                MaterialProperty mp;
+                mp.name = "chemical-formula";
+                mp.unit = "";
+                mp.type = "boolean";
+                mp.data = (param.string_value == "#t") ? 1.0 : 0.0;
+                material.properties["chemical-formula"] = mp;
+            }
+
+            continue;
+        }
+
 
         if (!prop.parameters.empty()) {
             for (const auto &param: prop.parameters) {

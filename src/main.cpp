@@ -33,9 +33,9 @@ int main()
     
     // 插入材料数据
     CFD_MaterialDB::DatabaseManager dbManager("materials.db");
-//    for (const auto& material : materials) {
-//        dbManager.insertMaterial(material);
-//    }
+    for (const auto& material : materials) {
+        dbManager.insertMaterial(material);
+    }
     
     sqlite3_close(db);
     return 0;
