@@ -2,7 +2,6 @@
   fluid
   (chemical-formula . #f)
   (density (constant . 1.225) (compressible-liquid 101325 1.225 1.42e+05 1 1.1 0.9))
-  (specific-heat (constant . 1006.43)(polynomial piecewise-polynomial (100 1000 1161.48214452351 -2.36881890191577 1.48551108358867E-02 -5.03490927522584E-05 9.9285695564579E-08 -1.11109658897742E-10 6.54019600406048E-14 -1.57358768447275E-17)(1000 3000 -7069.81410143802 33.7060506468204 -5.81275953375815E-02 5.42161532229608E-05 -2.936678858119E-08 9.23753316956768E-12 -1.56555339604519E-15 1.11233485020759E-19)) (polynomial nasa-9-piecewise-polynomial (200.000000 1000.000000 2.898903e+06 -5.649626e+04 1.437799e+03 -1.653609e+00 3.062254e-03 -2.279138e-06 6.272365e-10) (1000.000000 6000.000000 6.932494e+07 -3.610532e+05 1.476665e+03 -6.138349e-02 2.027963e-05 -3.075525e-09 1.888054e-13 )) )
   (thermal-conductivity (constant . 0.0242))
   (viscosity (constant . 1.7894e-05) (sutherland 1.716e-5 273.11 110.56) (power-law 1.716e-05 273.11 0.666) (blottner-curve-fit 3.07e-2 2.30e-1 -1.08e1)) 
   (molecular-weight (constant . 28.966))
@@ -13,24 +12,9 @@
   (velocity-accom-coefficient (constant . 0.9137))
   (formation-entropy (constant . 194336))
   (reference-temperature (constant . 298.15))
-  ; Critical Properties Perry's Chemical Enginners Handbook.  
   (critical-pressure (constant . 3.758e6))
   (critical-temperature (constant . 132.3))
   (acentric-factor (constant . 0.033))
   (critical-volume (constant . 0.002857)) 
   )
 
- (aluminum-solid
-  fluid
-  (chemical-formula . al<s>)
-  (density (constant . 2719)) 
-  (specific-heat (polynomial piecewise-polynomial (300 600 843.35167 -0.1821896 -0.00012430563 7.1562918e-07 -5.2557973e-10) (600 5000 788.73643 -0.032763207 2.2195489e-05 -6.5361777e-09 7.0548676e-13)))
-  (molecular-weight (constant . 26.9815))
-  (formation-enthalpy (constant . 3.2971232e+08))
-  (reference-temperature (constant . 298))
-  (formation-entropy (constant .  0.1644514E+06))
-  (species-phase (constant . 1))
-  (critical-pressure (constant . 9.123E+07))
-  (critical-temperature (constant . 6299.00))
-  (critical-volume (constant . 0.001410)) 
-  )

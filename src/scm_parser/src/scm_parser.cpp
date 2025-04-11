@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream> // For cerr
 #include <boost/spirit/home/x3/support/utility/annotate_on_success.hpp>
+#include <boost/fusion/include/at_c.hpp>
 namespace x3 = boost::spirit::x3;
 
 // Define coefficient_type_symbols
@@ -99,30 +100,72 @@ auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::
 
 auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                                = '('
-                >> coefficient_type_symbols
-                >> (vector2d | ('.' >> (x3::double_[([](auto &ctx) {
+                >> coefficient_type_symbols[([](auto &ctx) {
                     auto &param = x3::_val(ctx);
-                    param.coeff = CONSTANT;
-                    param.values = {{x3::_attr(ctx)}};
-                    std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
-                })] | symbol[([](auto &ctx) {
-                    auto &param = x3::_val(ctx);
-                    param.coeff = CONSTANT;
-                    param.values = {{-999.0}};
-                    param.string_value = x3::_attr(ctx);
-                    std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
-                })] | boolean[([](auto &ctx) {
-                    auto &param = x3::_val(ctx);
-                    param.coeff = CONSTANT;
-                    param.string_value = x3::_attr(ctx) ? "#t" : "#f";
-                    param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
-                    std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
-                })])))
+                    param.coeff = x3::_attr(ctx);
+                    std::cout << "Parsed parameter with coefficient type: " << static_cast<int>(param.coeff) << std::endl;
+                })]
+                >> (
+                    // 处理点后面的简单值
+                    ('.' >> (x3::double_[([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        param.values = {{x3::_attr(ctx)}};
+                        std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
+                    })] | symbol[([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        param.values = {{-999.0}};
+                        param.string_value = x3::_attr(ctx);
+                        std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
+                    })] | boolean[([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        param.string_value = x3::_attr(ctx) ? "#t" : "#f";
+                        param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+                        std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
+                    })]))
+                    // 处理嵌套的多项式数据结构
+                    | (x3::lit("piecewise-polynomial") >>
+                       x3::omit[*('(' >> *(x3::double_ | x3::omit[*x3::char_]) >> ')')][([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        std::cout << "Parsed piecewise-polynomial structure" << std::endl;
+                    })])
+                    // 处理嵌套的NASA多项式数据结构
+                    | (x3::lit("nasa-9-piecewise-polynomial") >>
+                       x3::omit[*('(' >> *(x3::double_ | x3::omit[*x3::char_]) >> ')')][([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        std::cout << "Parsed nasa-9-piecewise-polynomial structure" << std::endl;
+                    })])
+                    // 处理向量数据
+                    | vector2d[([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        param.values = x3::_attr(ctx);
+                        std::cout << "Parsed parameter with vector2d values" << std::endl;
+                    })]
+                    // 处理直接的数值列表
+                    | (+x3::double_[([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        double value = x3::_attr(ctx);
+                        if (param.values.empty()) {
+                            param.values.push_back({});
+                        }
+                        param.values[0].push_back(value);
+                        std::cout << "Added value " << value << " to parameter" << std::endl;
+                    })])
+                    // 处理任意内容 - 作为最后的备选方案
+                    | (x3::omit[*(x3::char_ - ')')][([](auto &ctx) {
+                        auto &param = x3::_val(ctx);
+                        // 确保参数至少有一个空的值向量
+                        if (param.values.empty()) {
+                            param.values.push_back({});
+                        }
+                        std::cout << "Parsed complex nested structure" << std::endl;
+                    })])
+                )
                 >> ')';
 
 // 定义简化参数规则
+
 auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simple_parameter"}
-                                      = '.' >> (x3::double_[([](auto &ctx) {
+                                      = ('.' >> (x3::double_[([](auto &ctx) {
             auto &param = x3::_val(ctx);
             param.coeff = CONSTANT;
             param.values = {{x3::_attr(ctx)}};
@@ -139,7 +182,23 @@ auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simpl
             param.string_value = x3::_attr(ctx) ? "#t" : "#f";
             param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
             std::cout << "Parsed simple parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
-        })]);
+        })]))
+        | ('(' >> coefficient_type_symbols >> *x3::double_ >> ')')[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            // In this case, we get a fusion sequence with the coefficient type and a sequence of doubles
+            param.coeff = boost::fusion::at_c<0>(x3::_attr(ctx));  // coefficient type
+
+            // Create a vector from the sequence of doubles
+            std::vector<double> values;
+            auto& doubles = boost::fusion::at_c<1>(x3::_attr(ctx));
+            for (auto it = doubles.begin(); it != doubles.end(); ++it) {
+                values.push_back(*it);
+            }
+
+            param.values = {values}; // Store as a single vector in a vector2d
+            std::cout << "Parsed simple parameter with coefficient type and inline values: "
+                      << static_cast<int>(param.coeff) << std::endl;
+        })];
 
 // 定义化学式属性规则
 auto const chemical_formula_property = x3::rule<chemical_formula_property_class, Property>{"chemical_formula_property"}
@@ -151,33 +210,55 @@ auto const chemical_formula_property = x3::rule<chemical_formula_property_class,
         })];
 
 // 定义通用属性规则
+// 定义通用属性规则
+// 定义通用属性规则
 auto const general_property = x3::rule<general_property_class, Property>{"general_property"}
                                       = symbol[([](auto &ctx) {
             auto& prop = x3::_val(ctx);
             prop.name = x3::_attr(ctx);
             std::cout << "Setting property name: " << prop.name << std::endl;
-        })] >> (simple_parameter[([](auto &ctx) {
-            auto& prop = x3::_val(ctx);
-            prop.parameters.push_back(x3::_attr(ctx));
-            std::cout << "Added simple parameter to property " << prop.name << std::endl;
-        })] | *parameter[([](auto &ctx) {
-            auto& prop = x3::_val(ctx);
-            prop.parameters.push_back(x3::_attr(ctx));
-            std::cout << "Added parameter to property " << prop.name << std::endl;
-        })]);
+        })] >> (
+            // 处理混合参数情况：可以是simple_parameter和parameter的任意组合
+            (simple_parameter[([](auto &ctx) {
+                auto& prop = x3::_val(ctx);
+                prop.parameters.push_back(x3::_attr(ctx));
+                std::cout << "Added simple parameter to property " << prop.name << std::endl;
+            })] >> *parameter[([](auto &ctx) {
+                auto& prop = x3::_val(ctx);
+                prop.parameters.push_back(x3::_attr(ctx));
+                std::cout << "Added parameter after simple parameter to property " << prop.name << std::endl;
+            })])
+            |
+            // 处理只有parameter的情况
+            (+parameter[([](auto &ctx) {
+                auto& prop = x3::_val(ctx);
+                prop.parameters.push_back(x3::_attr(ctx));
+                std::cout << "Added parameter to property " << prop.name << std::endl;
+            })])
+        );
 
+// 定义属性规则
 // 定义属性规则
 auto const property = x3::rule<property_class, Property>{"property"}
                               = '(' >> (chemical_formula_property[([](auto &ctx) {
-            const Property& prop = x3::_attr(ctx);
+            auto& prop = x3::_val(ctx);
+            const Property& parsed = x3::_attr(ctx);
+            // Copy the parsed property data to the output property
+            prop.name = parsed.name;
+            prop.parameters = parsed.parameters;
             std::cout << "Parsed chemical formula property: " << prop.name
                       << " with " << prop.parameters.size() << " parameters" << std::endl;
         })] | general_property[([](auto &ctx) {
-            const Property& prop = x3::_attr(ctx);
+            auto& prop = x3::_val(ctx);
+            const Property& parsed = x3::_attr(ctx);
+            // Copy the parsed property data to the output property
+            prop.name = parsed.name;
+            prop.parameters = parsed.parameters;
             std::cout << "Parsed general property: " << prop.name
                       << " with " << prop.parameters.size() << " parameters" << std::endl;
         })]) >> ')';
 
+// 定义材料规则
 // 定义材料规则
 auto const material = x3::rule<material_class, MaterialData>{"material"}
                               = '(' >> symbol[([](auto &ctx) {
@@ -191,8 +272,22 @@ auto const material = x3::rule<material_class, MaterialData>{"material"}
         })] >> *property[([](auto &ctx) {
             auto& mat = x3::_val(ctx);
             const Property& prop = x3::_attr(ctx);
-            mat.properties.push_back(prop);
-            std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
+
+            // Debug output to see what's in the property
+            std::cout << "DEBUG: Property before adding to material - name: '" << prop.name
+                      << "', parameters count: " << prop.parameters.size() << std::endl;
+
+            // Make sure we're adding a copy of the property with its name and parameters
+            Property newProp;
+            newProp.name = prop.name;
+            newProp.parameters = prop.parameters;
+
+            // Debug output to see what's in the new property
+            std::cout << "DEBUG: New property - name: '" << newProp.name
+                      << "', parameters count: " << newProp.parameters.size() << std::endl;
+
+            mat.properties.push_back(newProp);
+            std::cout << "Added property " << newProp.name << " to material " << mat.name << std::endl;
         })] >> ')';
 
 // 定义 SCM 文件规则
