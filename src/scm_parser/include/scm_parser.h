@@ -15,6 +15,10 @@
 namespace x3 = boost::spirit::x3;
 enum coefficientType {
     CONSTANT,
+    compressibleT,
+    sutherlandT,
+    powerLawT,
+    blottnerT,
     polynomialT,
     polynomialTPieceLinearT,                 ///< std::vector<double>
     polynomialTPiecePolyT,   ///< std::vector<std::array<double, 7>>

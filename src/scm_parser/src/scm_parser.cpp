@@ -2,14 +2,10 @@
 #include <boost/spirit/home/x3.hpp>
 #include <boost/fusion/include/adapt_struct.hpp>
 #include <boost/spirit/include/qi.hpp>
-// #include <boost/phoenix.hpp> // Likely not needed with x3 semantic actions
-// #include <boost/phoenix/core.hpp>
-// #include <boost/phoenix/operator.hpp>
-// #include <boost/phoenix/bind/bind_member_function.hpp>
+#include <boost/spirit/home/x3/support/utility/error_reporting.hpp>
 #include <algorithm>
 #include <fstream>
 #include <iostream> // For cerr
-
 #include <boost/spirit/home/x3/support/utility/annotate_on_success.hpp>
 namespace x3 = boost::spirit::x3;
 
@@ -21,7 +17,11 @@ void init_symbols() {
             ("polynomial", polynomialT)
             ("polynomial piecewise-linear", polynomialTPieceLinearT)
             ("polynomial piecewise-polynomial", polynomialTPiecePolyT)
-            ("polynomial nasa-9-piecewise-polynomial", nasa9PiecePolyT);
+            ("polynomial nasa-9-piecewise-polynomial", nasa9PiecePolyT)
+            ("compressible-liquid", compressibleT)
+            ("sutherland", sutherlandT)
+            ("power-law", powerLawT)
+            ("blottner-curve-fit", blottnerT);
 }
 
 BOOST_FUSION_ADAPT_STRUCT(
@@ -44,8 +44,32 @@ BOOST_FUSION_ADAPT_STRUCT(
     properties
 )
 
+// 定义错误处理器
+struct error_handler {
+    template <typename Iterator, typename Exception, typename Context>
+    x3::error_handler_result on_error(
+            Iterator& first, Iterator const& last,
+            Exception const& x, Context const& context) {
+        std::cerr << "Error: Expecting " << x.which() << " at: \""
+                  << std::string(first, std::min(first + 30, last))
+                  << "\"..." << std::endl;
+        return x3::error_handler_result::fail;
+    }
+};
+
+struct debug_handler {
+    template <typename Iterator, typename Context>
+    void on_success(Iterator const& first, Iterator const& last, Context const& context) {
+        std::cout << "Parsed: \"" << std::string(first, last) << "\"" << std::endl;
+    }
+};
+
+
+
+
 auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
-                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.")|x3::char_("<>")|x3::char_("<s>"))];
+                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}()") | x3::char_("<>") | x3::char_("<s>"))];
+
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
     = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
 auto const boolean = x3::rule<struct boolean_, bool>{"boolean"}
@@ -58,54 +82,139 @@ auto const vector1d = x3::rule<class vector1d_, std::vector<double>>{}
 auto const vector2d = x3::rule<class vector2d_, std::vector<std::vector<double>>>{}
     = '(' >> *vector1d >> ')';
 
-auto const parameter = x3::rule<class parameter_, Parameter>{"parameter"}
-    = '('
+
+// 首先声明所有规则
+struct parameter_class;
+auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"};
+
+struct simple_parameter_class;
+auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simple_parameter"};
+
+struct chemical_formula_property_class;
+auto const chemical_formula_property = x3::rule<chemical_formula_property_class, Property>{"chemical_formula_property"};
+
+struct general_property_class;
+auto const general_property = x3::rule<general_property_class, Property>{"general_property"};
+
+struct property_class;
+auto const property = x3::rule<property_class, Property>{"property"};
+
+struct material_class;
+auto const material = x3::rule<material_class, MaterialData>{"material"};
+
+// 然后定义规则
+auto const parameter_def =
+    '('
     >> coefficient_type_symbols
     >> (vector2d | ('.' >> (x3::double_[([](auto &ctx) {
         auto &param = x3::_val(ctx);
+        param.coeff = CONSTANT;
         param.values = {{x3::_attr(ctx)}};
+        std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
     })] | symbol[([](auto &ctx) {
         auto &param = x3::_val(ctx);
+        param.coeff = CONSTANT;
         param.values = {{-999.0}};
         param.string_value = x3::_attr(ctx);
+        std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
     })] | boolean[([](auto &ctx) {
         auto &param = x3::_val(ctx);
+        param.coeff = CONSTANT;
         param.string_value = x3::_attr(ctx) ? "#t" : "#f";
         param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+        std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
     })])))
     >> ')';
 
-auto const chemical_formula_property_action = [](auto& ctx)
-        {
-    std::string formula_str = x3::_attr(ctx);
-    Property prop;
-    prop.name = "chemical-formula";
+// 添加一个简化的参数规则，用于处理 (chemical-formula . #f) 这样的格式
+auto const simple_parameter_def =
+    '.' >> (x3::double_[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.coeff = CONSTANT;
+        param.values = {{x3::_attr(ctx)}};
+        std::cout << "Parsed simple parameter with double value: " << x3::_attr(ctx) << std::endl;
+    })] | symbol[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.coeff = CONSTANT;
+        param.values = {{-999.0}};
+        param.string_value = x3::_attr(ctx);
+        std::cout << "Parsed simple parameter with symbol value: " << x3::_attr(ctx) << std::endl;
+    })] | boolean[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.coeff = CONSTANT;
+        param.string_value = x3::_attr(ctx) ? "#t" : "#f";
+        param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+        std::cout << "Parsed simple parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
+    })]);
 
-    Parameter param;
-    param.coeff = CONSTANT;
-    param.values = {{-999.0}};
-    param.string_value = formula_str;
+auto const chemical_formula_property_def =
+    (x3::lit("chemical-formula") >> simple_parameter)[([](auto &ctx) {
+        auto &prop = x3::_val(ctx);
+        prop.name = "chemical-formula";
+        prop.parameters.push_back(x3::_attr(ctx));
+        std::cout << "Parsed chemical formula property with parameter" << std::endl;
+    })];
 
-    prop.parameters.push_back(param);
+auto const general_property_def =
+    symbol[([](auto &ctx) {
+        auto& prop = x3::_val(ctx);
+        prop.name = x3::_attr(ctx);
+        std::cout << "Setting property name: " << prop.name << std::endl;
+    })] >> (simple_parameter[([](auto &ctx) {
+        auto& prop = x3::_val(ctx);
+        prop.parameters.push_back(x3::_attr(ctx));
+        std::cout << "Added simple parameter to property " << prop.name << std::endl;
+    })] | *parameter[([](auto &ctx) {
+        auto& prop = x3::_val(ctx);
+        prop.parameters.push_back(x3::_attr(ctx));
+        std::cout << "Added parameter to property " << prop.name << std::endl;
+    })]);
 
-    x3::_val(ctx) = prop;
-};
+auto const property_def =
+    '(' >> (chemical_formula_property[([](auto &ctx) {
+        const Property& prop = x3::_attr(ctx);
+        std::cout << "Parsed chemical formula property: " << prop.name
+                  << " with " << prop.parameters.size() << " parameters" << std::endl;
+    })] | general_property[([](auto &ctx) {
+        const Property& prop = x3::_attr(ctx);
+        std::cout << "Parsed general property: " << prop.name
+                  << " with " << prop.parameters.size() << " parameters" << std::endl;
+    })]) >> ')';
 
-auto const chemical_formula_property = x3::rule<class cfp_, Property>{"chemical_formula_property"}
-    = (x3::lit("chemical-formula") >> '.' >> symbol)[chemical_formula_property_action];
+auto const material_def =
+    '(' >> symbol[([](auto &ctx) {
+        auto& mat = x3::_val(ctx);
+        mat.name = x3::_attr(ctx);
+        std::cout << "Parsed material name: " << mat.name << std::endl;
+    })] >> symbol[([](auto &ctx) {
+        auto& mat = x3::_val(ctx);
+        mat.type = x3::_attr(ctx);
+        std::cout << "Parsed material type: " << mat.type << std::endl;
+    })] >> *property[([](auto &ctx) {
+        auto& mat = x3::_val(ctx);
+        const Property& prop = x3::_attr(ctx);
+        mat.properties.push_back(prop);
+        std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
+    })] >> ')';
 
-auto const general_property = x3::rule<class gp_, Property>{"general_property"}
-    = symbol >> *parameter;
+// 最后将定义与声明关联起来
+BOOST_SPIRIT_DEFINE(parameter, simple_parameter, chemical_formula_property, general_property, property, material);
 
-auto const property = x3::rule<struct property_, Property>{"property"}
-    = '(' >> (chemical_formula_property | general_property) >> ')';
 
-auto const material = x3::rule<struct material_, MaterialData>{"material"}
-    = '(' >> symbol >> symbol >> *property >> ')';
+auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
 
-auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> x3::eol];
-auto const scm_file = x3::rule<struct scm_file_, std::vector<MaterialData>>{"scm_file"}
-    = x3::skip(comment | x3::space)[*material];
+///< SCM file rule
+auto const scm_file_def = x3::skip(comment | x3::space)[*material[([](auto &ctx) {
+    const auto& mat = x3::_attr(ctx);
+    std::cout << "Successfully parsed material: " << mat.name
+              << " with " << mat.properties.size() << " properties" << std::endl;
+    x3::_val(ctx).push_back(mat);
+})]];
+
+struct scm_file_class;
+auto const scm_file = x3::rule<scm_file_class, std::vector<MaterialData>>{"scm_file"} = scm_file_def;
+
+
 
 std::vector<Material> ScmParser::parse(const std::string &filename) {
     std::vector<Material> materials_out;
@@ -122,11 +231,29 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
     auto iter = content.begin();
     auto end = content.end();
     try {
+        // 添加日志，输出文件内容前几行
+        std::cout << "Parsing file: " << filename << std::endl;
+        std::string preview = content.substr(0, std::min(size_t(200), content.size()));
+        std::cout << "File preview: " << std::endl << preview << "..." << std::endl;
+
         bool success = x3::phrase_parse(iter, end, scm_file, x3::space, parsed_materials);
+
+        // 添加日志，输出解析结果
+        std::cout << "Parse success: " << success << std::endl;
+        std::cout << "Parsed materials count: " << parsed_materials.size() << std::endl;
+        std::cout << "Remaining unparsed: " << (iter != end) << std::endl;
+
         if (!success || iter != end) {
             std::cerr << "解析失败 at: '" << std::string(iter, std::min(iter + 20, end)) << "...'"
                       << std::endl;
             return materials_out;
+        }
+
+        // 添加日志，输出每个解析到的材料
+        for (size_t i = 0; i < parsed_materials.size(); ++i) {
+            std::cerr << "Material " << i << ": " << parsed_materials[i].name
+                      << ", Type: " << parsed_materials[i].type
+                      << ", Properties count: " << parsed_materials[i].properties.size() << std::endl;
         }
 
         for (const auto &mat_data: parsed_materials) {
