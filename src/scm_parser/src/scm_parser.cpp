@@ -8,10 +8,12 @@
 #include <iostream> // For cerr
 #include <boost/spirit/home/x3/support/utility/annotate_on_success.hpp>
 #include <boost/fusion/include/at_c.hpp>
+
 namespace x3 = boost::spirit::x3;
 
 // Define coefficient_type_symbols
 x3::symbols<coefficientType> coefficient_type_symbols;
+
 void init_symbols() {
     coefficient_type_symbols.add
             ("constant", CONSTANT)
@@ -39,18 +41,18 @@ BOOST_FUSION_ADAPT_STRUCT(
 )
 
 BOOST_FUSION_ADAPT_STRUCT(
-    MaterialData,
-    name,
-    type,
-    properties
+        MaterialData,
+        name,
+        type,
+        properties
 )
 
 // 定义错误处理器
 struct error_handler {
-    template <typename Iterator, typename Exception, typename Context>
+    template<typename Iterator, typename Exception, typename Context>
     x3::error_handler_result on_error(
-            Iterator& first, Iterator const& last,
-            Exception const& x, Context const& context) {
+            Iterator &first, Iterator const &last,
+            Exception const &x, Context const &context) {
         std::cerr << "Error: Expecting " << x.which() << " at: \""
                   << std::string(first, std::min(first + 30, last))
                   << "\"..." << std::endl;
@@ -59,8 +61,8 @@ struct error_handler {
 };
 
 struct debug_handler {
-    template <typename Iterator, typename Context>
-    void on_success(Iterator const& first, Iterator const& last, Context const& context) {
+    template<typename Iterator, typename Context>
+    void on_success(Iterator const &first, Iterator const &last, Context const &context) {
         std::cout << "Parsed: \"" << std::string(first, last) << "\"" << std::endl;
     }
 };
@@ -74,9 +76,9 @@ struct material_class;
 struct scm_file_class;
 
 
-
 auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
-                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}()") | x3::char_("<>") | x3::char_("<s>"))];
+                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}()") | x3::char_("<>") |
+                                           x3::char_("<s>"))];
 
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
                                 = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
@@ -94,8 +96,23 @@ auto const vector1d = x3::rule<class vector1d_, std::vector<double>>{}
 auto const vector2d = x3::rule<class vector2d_, std::vector<std::vector<double>>>{}
                               = '(' >> *vector1d >> ')';
 
-auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
 
+///< rules for polynomial types
+// Rule for parsing a single polynomial piece (a vector of coefficients)
+auto const poly_piece = x3::rule<class poly_piece_, std::vector<double>>{}
+                                = '(' >> +x3::double_ >> ')';
+
+// Rule for parsing a piecewise polynomial (a vector of polynomial pieces)
+auto const piecewise_poly = x3::rule<class piecewise_poly_, std::vector<std::vector<double>>>{}
+                                    = +poly_piece;
+
+// Rule for parsing a NASA-9 piecewise polynomial
+auto const nasa9_poly = x3::rule<class nasa9_poly_, std::vector<std::vector<double>>>{}
+                                = +poly_piece;
+
+
+
+auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
 
 
 auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
@@ -122,42 +139,22 @@ auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                         param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
                         std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
                     })]))
-                    // 处理嵌套的多项式数据结构
-                    | (x3::lit("piecewise-polynomial") >>
-                       x3::omit[*('(' >> *(x3::double_ | x3::omit[*x3::char_]) >> ')')][([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        std::cout << "Parsed piecewise-polynomial structure" << std::endl;
-                    })])
-                    // 处理嵌套的NASA多项式数据结构
-                    | (x3::lit("nasa-9-piecewise-polynomial") >>
-                       x3::omit[*('(' >> *(x3::double_ | x3::omit[*x3::char_]) >> ')')][([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        std::cout << "Parsed nasa-9-piecewise-polynomial structure" << std::endl;
-                    })])
-                    // 处理向量数据
-                    | vector2d[([](auto &ctx) {
+                    // 直接尝试解析嵌套的多项式结构
+                    | (+poly_piece)[([](auto &ctx) {
                         auto &param = x3::_val(ctx);
                         param.values = x3::_attr(ctx);
-                        std::cout << "Parsed parameter with vector2d values" << std::endl;
+                        std::cout << "Parsed polynomial structure with " << param.values.size() << " pieces" << std::endl;
                     })]
-                    // 处理直接的数值列表
-                    | (+x3::double_[([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        double value = x3::_attr(ctx);
-                        if (param.values.empty()) {
-                            param.values.push_back({});
-                        }
-                        param.values[0].push_back(value);
-                        std::cout << "Added value " << value << " to parameter" << std::endl;
-                    })])
                     // 处理任意内容 - 作为最后的备选方案
-                    | (x3::omit[*(x3::char_ - ')')][([](auto &ctx) {
+                    | (x3::raw[*(x3::char_ - ')')][([](auto &ctx) {
                         auto &param = x3::_val(ctx);
+                        auto range = x3::_attr(ctx);
+                        std::string content(range.begin(), range.end());
                         // 确保参数至少有一个空的值向量
                         if (param.values.empty()) {
                             param.values.push_back({});
                         }
-                        std::cout << "Parsed complex nested structure" << std::endl;
+                        std::cout << "Parsed complex parameter content: " << content.substr(0, 20) << "..." << std::endl;
                     })])
                 )
                 >> ')';
@@ -183,14 +180,14 @@ auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simpl
             param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
             std::cout << "Parsed simple parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
         })]))
-        | ('(' >> coefficient_type_symbols >> *x3::double_ >> ')')[([](auto &ctx) {
+                                        | ('(' >> coefficient_type_symbols >> *x3::double_ >> ')')[([](auto &ctx) {
             auto &param = x3::_val(ctx);
             // In this case, we get a fusion sequence with the coefficient type and a sequence of doubles
             param.coeff = boost::fusion::at_c<0>(x3::_attr(ctx));  // coefficient type
 
             // Create a vector from the sequence of doubles
             std::vector<double> values;
-            auto& doubles = boost::fusion::at_c<1>(x3::_attr(ctx));
+            auto &doubles = boost::fusion::at_c<1>(x3::_attr(ctx));
             for (auto it = doubles.begin(); it != doubles.end(); ++it) {
                 values.push_back(*it);
             }
@@ -209,48 +206,39 @@ auto const chemical_formula_property = x3::rule<chemical_formula_property_class,
             std::cout << "Parsed chemical formula property with parameter" << std::endl;
         })];
 
-// 定义通用属性规则
-// 定义通用属性规则
-// 定义通用属性规则
+
 auto const general_property = x3::rule<general_property_class, Property>{"general_property"}
                                       = symbol[([](auto &ctx) {
-            auto& prop = x3::_val(ctx);
+            auto &prop = x3::_val(ctx);
             prop.name = x3::_attr(ctx);
             std::cout << "Setting property name: " << prop.name << std::endl;
         })] >> (
-            // 处理混合参数情况：可以是simple_parameter和parameter的任意组合
-            (simple_parameter[([](auto &ctx) {
-                auto& prop = x3::_val(ctx);
-                prop.parameters.push_back(x3::_attr(ctx));
-                std::cout << "Added simple parameter to property " << prop.name << std::endl;
-            })] >> *parameter[([](auto &ctx) {
-                auto& prop = x3::_val(ctx);
-                prop.parameters.push_back(x3::_attr(ctx));
-                std::cout << "Added parameter after simple parameter to property " << prop.name << std::endl;
-            })])
-            |
-            // 处理只有parameter的情况
-            (+parameter[([](auto &ctx) {
-                auto& prop = x3::_val(ctx);
-                prop.parameters.push_back(x3::_attr(ctx));
-                std::cout << "Added parameter to property " << prop.name << std::endl;
-            })])
+                // 处理任意数量和类型的参数
+                +(simple_parameter[([](auto &ctx) {
+                    auto &prop = x3::_val(ctx);
+                    prop.parameters.push_back(x3::_attr(ctx));
+                    std::cout << "Added simple parameter to property " << prop.name << std::endl;
+                })] | parameter[([](auto &ctx) {
+                    auto &prop = x3::_val(ctx);
+                    prop.parameters.push_back(x3::_attr(ctx));
+                    std::cout << "Added parameter to property " << prop.name << std::endl;
+                })])
         );
 
 // 定义属性规则
 // 定义属性规则
 auto const property = x3::rule<property_class, Property>{"property"}
                               = '(' >> (chemical_formula_property[([](auto &ctx) {
-            auto& prop = x3::_val(ctx);
-            const Property& parsed = x3::_attr(ctx);
+            auto &prop = x3::_val(ctx);
+            const Property &parsed = x3::_attr(ctx);
             // Copy the parsed property data to the output property
             prop.name = parsed.name;
             prop.parameters = parsed.parameters;
             std::cout << "Parsed chemical formula property: " << prop.name
                       << " with " << prop.parameters.size() << " parameters" << std::endl;
         })] | general_property[([](auto &ctx) {
-            auto& prop = x3::_val(ctx);
-            const Property& parsed = x3::_attr(ctx);
+            auto &prop = x3::_val(ctx);
+            const Property &parsed = x3::_attr(ctx);
             // Copy the parsed property data to the output property
             prop.name = parsed.name;
             prop.parameters = parsed.parameters;
@@ -262,16 +250,16 @@ auto const property = x3::rule<property_class, Property>{"property"}
 // 定义材料规则
 auto const material = x3::rule<material_class, MaterialData>{"material"}
                               = '(' >> symbol[([](auto &ctx) {
-            auto& mat = x3::_val(ctx);
+            auto &mat = x3::_val(ctx);
             mat.name = x3::_attr(ctx);
             std::cout << "Parsed material name: " << mat.name << std::endl;
         })] >> symbol[([](auto &ctx) {
-            auto& mat = x3::_val(ctx);
+            auto &mat = x3::_val(ctx);
             mat.type = x3::_attr(ctx);
             std::cout << "Parsed material type: " << mat.type << std::endl;
         })] >> *property[([](auto &ctx) {
-            auto& mat = x3::_val(ctx);
-            const Property& prop = x3::_attr(ctx);
+            auto &mat = x3::_val(ctx);
+            const Property &prop = x3::_attr(ctx);
 
             // Debug output to see what's in the property
             std::cout << "DEBUG: Property before adding to material - name: '" << prop.name
@@ -333,8 +321,7 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
         }
 
         // 添加日志，输出每个解析到的材料
-        for (size_t i = 0; i < parsed_materials.size(); ++i)
-        {
+        for (size_t i = 0; i < parsed_materials.size(); ++i) {
             std::cout << "Material " << i << ": " << parsed_materials[i].name
                       << ", Type: " << parsed_materials[i].type
                       << ", Properties count: " << parsed_materials[i].properties.size() << std::endl;
@@ -373,8 +360,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
         const auto &key = prop.name;
 
         // 处理化学式
-        if (key == "chemical-formula" && !prop.parameters.empty())
-        {
+        if (key == "chemical-formula" && !prop.parameters.empty()) {
             const auto &param = prop.parameters[0];
             if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
                 param.values[0][0] == -999.0 && !param.string_value.empty()) {
@@ -399,8 +385,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
             }
             continue;
         }
-        if(key== "density" || key == "specific-heat-ratio" || key == "molecular-weight")
-        {
+        if (key == "density" || key == "specific-heat-ratio" || key == "molecular-weight") {
             const auto &param = prop.parameters[0];
             if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
                 param.values[0][0] == -999.0 && !param.string_value.empty()) {
@@ -412,9 +397,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                 mp.data = param.string_value;
                 material.properties[key] = mp;
 
-            }
-            else if(param.coeff == polynomialTPieceLinearT)
-            {
+            } else if (param.coeff == polynomialTPieceLinearT) {
                 // 使用 MaterialProperty 结构
                 MaterialProperty mp;
                 mp.name = key;
@@ -422,9 +405,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                 mp.type = "string";
                 mp.data = param.string_value;
                 material.properties[key] = mp;
-            }
-            else if(param.coeff == polynomialTPiecePolyT)
-            {
+            } else if (param.coeff == polynomialTPiecePolyT) {
                 // 使用 MaterialProperty 结构
                 MaterialProperty mp;
                 mp.name = key;
@@ -432,8 +413,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                 mp.type = "string";
                 mp.data = param.string_value;
                 material.properties[key] = mp;
-            }
-            else if (param.string_value == "#f" || param.string_value == "#t") {
+            } else if (param.string_value == "#f" || param.string_value == "#t") {
                 // 处理 (chemical-formula . #f) 这种情况
                 MaterialProperty mp;
                 mp.name = "chemical-formula";
@@ -465,7 +445,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                     material.properties[key] = mp;
                     processed = true;
                 }
-                // 处理字符串参数
+                    // 处理字符串参数
                 else if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
                          param.values[0][0] == -999.0 && !param.string_value.empty()) {
                     mp.type = "string";
@@ -473,7 +453,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                     material.properties[key] = mp;
                     processed = true;
                 }
-                // 处理简单数值参数
+                    // 处理简单数值参数
                 else if (!processed && param.coeff == CONSTANT && param.values.size() == 1 &&
                          param.values[0].size() == 1) {
                     mp.type = "number";
@@ -481,11 +461,11 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                     material.properties[key] = mp;
                     processed = true;
                 }
-                // 处理多项式或分段多项式参数
+                    // 处理多项式或分段多项式参数
                 else if (!processed && (param.coeff == polynomialT ||
-                         param.coeff == polynomialTPieceLinearT ||
-                         param.coeff == polynomialTPiecePolyT ||
-                         param.coeff == nasa9PiecePolyT)) {
+                                        param.coeff == polynomialTPieceLinearT ||
+                                        param.coeff == polynomialTPiecePolyT ||
+                                        param.coeff == nasa9PiecePolyT)) {
 
                     if (param.coeff == polynomialT) {
                         mp.type = "polynomial";
@@ -496,15 +476,13 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                             polyData.max_temp = 0.0;
                             mp.data = polyData;
                         }
-                    }
-                    else if (param.coeff == nasa9PiecePolyT) {
+                    } else if (param.coeff == nasa9PiecePolyT) {
                         mp.type = "nasa_polynomial";
                         NASAPolynomialData nasaData;
                         // Populate NASA polynomial data
                         // This is a placeholder, actual implementation would depend on data format
                         mp.data = nasaData;
-                    }
-                    else {  // polynomialTPieceLinearT or polynomialTPiecePolyT
+                    } else {  // polynomialTPieceLinearT or polynomialTPiecePolyT
                         mp.type = "piecewise_polynomial";
                         PiecewisePolynomialData piecewiseData;
                         piecewiseData.coefficients = param.values;
