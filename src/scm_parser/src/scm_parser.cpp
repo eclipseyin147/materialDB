@@ -77,7 +77,7 @@ struct scm_file_class;
 
 
 auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
-                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}()") | x3::char_("<>") |
+                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}") | x3::char_("<>") |
                                            x3::char_("<s>"))];
 
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
@@ -97,6 +97,36 @@ auto const vector2d = x3::rule<class vector2d_, std::vector<std::vector<double>>
                               = '(' >> *vector1d >> ')';
 
 
+///< Rules for parsing species list
+
+auto const species_list = x3::rule<class species_list_, std::vector<std::string>>{}
+                                  = x3::lit("names") >> +symbol;
+
+auto const species_property = x3::rule<class species_property_, Property>{"species_property"}
+                                      = (x3::lit("species") >> '(' >> species_list >> ')')[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            prop.name = "species";
+            // Create a parameter to hold the species names
+            Parameter param;
+            param.coeff = CONSTANT;
+            param.string_value = "species_list"; // Marker to indicate this is a species list
+            // Store the species names in the parameter
+            auto species_names = x3::_attr(ctx);
+            for (const auto &name: species_names) {
+                // For each species name, add a value of -999.0 as a placeholder
+                param.values.push_back({-999.0});
+                // And store the actual name in an additional string field
+                if (!param.string_value.empty()) {
+                    param.string_value += " ";
+                }
+                param.string_value += name;
+            }
+
+            prop.parameters.push_back(param);
+            std::cout << "Parsed species property with " << species_names.size() << " species" << std::endl;
+        })];
+
+
 ///< rules for polynomial types
 // Rule for parsing a single polynomial piece (a vector of coefficients)
 auto const poly_piece = x3::rule<class poly_piece_, std::vector<double>>{}
@@ -111,7 +141,6 @@ auto const nasa9_poly = x3::rule<class nasa9_poly_, std::vector<std::vector<doub
                                 = +poly_piece;
 
 
-
 auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
 
 
@@ -120,42 +149,67 @@ auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                 >> coefficient_type_symbols[([](auto &ctx) {
                     auto &param = x3::_val(ctx);
                     param.coeff = x3::_attr(ctx);
-                    std::cout << "Parsed parameter with coefficient type: " << static_cast<int>(param.coeff) << std::endl;
+                    std::cout << "Parsed parameter with coefficient type: " << static_cast<int>(param.coeff)
+                              << std::endl;
                 })]
                 >> (
-                    // 处理点后面的简单值
-                    ('.' >> (x3::double_[([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        param.values = {{x3::_attr(ctx)}};
-                        std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
-                    })] | symbol[([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        param.values = {{-999.0}};
-                        param.string_value = x3::_attr(ctx);
-                        std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
-                    })] | boolean[([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        param.string_value = x3::_attr(ctx) ? "#t" : "#f";
-                        param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
-                        std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f") << std::endl;
-                    })]))
-                    // 直接尝试解析嵌套的多项式结构
-                    | (+poly_piece)[([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        param.values = x3::_attr(ctx);
-                        std::cout << "Parsed polynomial structure with " << param.values.size() << " pieces" << std::endl;
-                    })]
-                    // 处理任意内容 - 作为最后的备选方案
-                    | (x3::raw[*(x3::char_ - ')')][([](auto &ctx) {
-                        auto &param = x3::_val(ctx);
-                        auto range = x3::_attr(ctx);
-                        std::string content(range.begin(), range.end());
-                        // 确保参数至少有一个空的值向量
-                        if (param.values.empty()) {
-                            param.values.push_back({});
-                        }
-                        std::cout << "Parsed complex parameter content: " << content.substr(0, 20) << "..." << std::endl;
-                    })])
+                        // 处理点后面的简单值
+                        ('.' >> (x3::double_[([](auto &ctx) {
+                            auto &param = x3::_val(ctx);
+                            param.values = {{x3::_attr(ctx)}};
+                            std::cout << "Parsed parameter with double value: " << x3::_attr(ctx) << std::endl;
+                        })] | symbol[([](auto &ctx) {
+                            auto &param = x3::_val(ctx);
+                            param.values = {{-999.0}};
+                            param.string_value = x3::_attr(ctx);
+                            std::cout << "Parsed parameter with symbol value: " << x3::_attr(ctx) << std::endl;
+                        })] | boolean[([](auto &ctx) {
+                            auto &param = x3::_val(ctx);
+                            param.string_value = x3::_attr(ctx) ? "#t" : "#f";
+                            param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+                            std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f")
+                                      << std::endl;
+                        })]))
+                        // 处理多项式类型 - 先处理可能的子类型关键字，然后解析多项式数据
+                        | ((x3::lit("piecewise-polynomial") | x3::lit("nasa-9-piecewise-polynomial")) >>
+                                                                                                      (+poly_piece)[([](
+                                                                                                              auto &ctx) {
+                                                                                                          auto &param = x3::_val(
+                                                                                                                  ctx);
+                                                                                                          param.values = x3::_attr(
+                                                                                                                  ctx);
+                                                                                                          std::cout
+                                                                                                                  << "Parsed polynomial structure with "
+                                                                                                                  << param.values.size()
+                                                                                                                  << " pieces"
+                                                                                                                  << std::endl;
+                                                                                                      })])
+                        // 处理普通数值列表 - 用于 compressible-liquid 等类型
+                        | (+x3::double_)[([](auto &ctx) {
+                            auto &param = x3::_val(ctx);
+                            auto values = x3::_attr(ctx);
+                            param.values = {values};
+                            std::cout << "Parsed parameter with " << values.size() << " values" << std::endl;
+                        })]
+                        // 处理嵌套的多项式结构 - 不需要子类型关键字
+                        | (+poly_piece)[([](auto &ctx) {
+                            auto &param = x3::_val(ctx);
+                            param.values = x3::_attr(ctx);
+                            std::cout << "Parsed nested polynomial structure with " << param.values.size() << " pieces"
+                                      << std::endl;
+                        })]
+                        // 处理任意内容 - 作为最后的备选方案
+                        | (x3::raw[*(x3::char_ - ')')][([](auto &ctx) {
+                            auto &param = x3::_val(ctx);
+                            auto range = x3::_attr(ctx);
+                            std::string content(range.begin(), range.end());
+                            // 确保参数至少有一个空的值向量
+                            if (param.values.empty()) {
+                                param.values.push_back({});
+                            }
+                            std::cout << "Parsed complex parameter content: " << content.substr(0, 20) << "..."
+                                      << std::endl;
+                        })])
                 )
                 >> ')';
 
@@ -213,8 +267,8 @@ auto const general_property = x3::rule<general_property_class, Property>{"genera
             prop.name = x3::_attr(ctx);
             std::cout << "Setting property name: " << prop.name << std::endl;
         })] >> (
-                // 处理任意数量和类型的参数
-                +(simple_parameter[([](auto &ctx) {
+                // 处理任意数量和类型的参数，包括简单参数和复杂参数
+                *(simple_parameter[([](auto &ctx) {
                     auto &prop = x3::_val(ctx);
                     prop.parameters.push_back(x3::_attr(ctx));
                     std::cout << "Added simple parameter to property " << prop.name << std::endl;
@@ -228,23 +282,33 @@ auto const general_property = x3::rule<general_property_class, Property>{"genera
 // 定义属性规则
 // 定义属性规则
 auto const property = x3::rule<property_class, Property>{"property"}
-                              = '(' >> (chemical_formula_property[([](auto &ctx) {
-            auto &prop = x3::_val(ctx);
-            const Property &parsed = x3::_attr(ctx);
-            // Copy the parsed property data to the output property
-            prop.name = parsed.name;
-            prop.parameters = parsed.parameters;
-            std::cout << "Parsed chemical formula property: " << prop.name
-                      << " with " << prop.parameters.size() << " parameters" << std::endl;
-        })] | general_property[([](auto &ctx) {
-            auto &prop = x3::_val(ctx);
-            const Property &parsed = x3::_attr(ctx);
-            // Copy the parsed property data to the output property
-            prop.name = parsed.name;
-            prop.parameters = parsed.parameters;
-            std::cout << "Parsed general property: " << prop.name
-                      << " with " << prop.parameters.size() << " parameters" << std::endl;
-        })]) >> ')';
+                              = '(' >> (
+                (x3::lit("chemical-formula") >> simple_parameter)[([](auto &ctx) {
+                    auto &prop = x3::_val(ctx);
+                    prop.name = "chemical-formula";
+                    prop.parameters.push_back(x3::_attr(ctx));
+                    std::cout << "Parsed chemical formula property with parameter" << std::endl;
+                })]
+                | species_property[([](auto &ctx) {
+                    auto &prop = x3::_val(ctx);
+                    const Property &parsed = x3::_attr(ctx);
+                    prop.name = parsed.name;
+                    prop.parameters = parsed.parameters;
+                    std::cout << "Parsed species property with " << prop.parameters.size() << " parameters"
+                              << std::endl;
+                })]
+                | (symbol >> *parameter)[([](auto &ctx) {
+                    auto &prop = x3::_val(ctx);
+                    auto &attr = x3::_attr(ctx);
+                    prop.name = boost::fusion::at_c<0>(attr);
+                    auto &params = boost::fusion::at_c<1>(attr);
+                    for (auto it = params.begin(); it != params.end(); ++it) {
+                        prop.parameters.push_back(*it);
+                    }
+                    std::cout << "Parsed property: " << prop.name
+                              << " with " << prop.parameters.size() << " parameters" << std::endl;
+                })]
+        ) >> ')';
 
 // 定义材料规则
 // 定义材料规则
@@ -257,26 +321,15 @@ auto const material = x3::rule<material_class, MaterialData>{"material"}
             auto &mat = x3::_val(ctx);
             mat.type = x3::_attr(ctx);
             std::cout << "Parsed material type: " << mat.type << std::endl;
-        })] >> *property[([](auto &ctx) {
-            auto &mat = x3::_val(ctx);
-            const Property &prop = x3::_attr(ctx);
-
-            // Debug output to see what's in the property
-            std::cout << "DEBUG: Property before adding to material - name: '" << prop.name
-                      << "', parameters count: " << prop.parameters.size() << std::endl;
-
-            // Make sure we're adding a copy of the property with its name and parameters
-            Property newProp;
-            newProp.name = prop.name;
-            newProp.parameters = prop.parameters;
-
-            // Debug output to see what's in the new property
-            std::cout << "DEBUG: New property - name: '" << newProp.name
-                      << "', parameters count: " << newProp.parameters.size() << std::endl;
-
-            mat.properties.push_back(newProp);
-            std::cout << "Added property " << newProp.name << " to material " << mat.name << std::endl;
-        })] >> ')';
+        })] >> *(
+                property[([](auto &ctx) {
+                    auto &mat = x3::_val(ctx);
+                    const Property &prop = x3::_attr(ctx);
+                    mat.properties.push_back(prop);
+                    std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
+                })]
+                | comment
+        ) >> ')';
 
 // 定义 SCM 文件规则
 auto const scm_file = x3::rule<scm_file_class, std::vector<MaterialData>>{"scm_file"}
@@ -385,6 +438,35 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
             }
             continue;
         }
+
+        // In the processProperties method, add a new case for species
+        if (key == "species" && !prop.parameters.empty()) {
+            const auto &param = prop.parameters[0];
+            if (param.string_value.find("species_list") == 0) {
+                // Extract species names from the string_value
+                std::string species_str = param.string_value.substr(12); // Skip "species_list "
+                std::istringstream iss(species_str);
+                std::vector<std::string> species_names;
+                std::string name;
+                while (iss >> name) {
+                    species_names.push_back(name);
+                }
+
+                // Create a MaterialProperty for the species list
+                // Create a MaterialProperty for the species list
+                MaterialProperty mp;
+                mp.name = "species";
+                mp.unit = "";
+                mp.type = "string_array";
+                mp.data = species_names;
+                material.properties["species"] = mp;
+
+                // Also store the species names in the material's species field
+                material.speciesName = species_names;
+            }
+            continue;
+        }
+
         if (key == "density" || key == "specific-heat-ratio" || key == "molecular-weight") {
             const auto &param = prop.parameters[0];
             if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&

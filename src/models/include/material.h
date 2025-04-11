@@ -6,7 +6,7 @@
 #include <variant>
 #include <array>
 #include <nlohmann/json.hpp>
-
+#include <sstream>  // For std::istringstream
 #include <optional>
     enum class MaterialState {
         FLUID,
@@ -61,7 +61,7 @@
     struct MaterialProperty {
         std::string name;
         std::string unit;
-        std::variant<double, std::vector<double>, std::string, PolynomialData, NASAPolynomialData, PiecewisePolynomialData> data;
+        std::variant<double, std::vector<double>, std::string, std::vector<std::string>,PolynomialData, NASAPolynomialData, PiecewisePolynomialData> data;
         std::string type;
     };
 
@@ -209,6 +209,7 @@
         MaterialType type;
         std::string description;
         std::optional<std::string> chemical_formula;
+        std::optional<std::vector<std::string>> speciesName;
         std::unordered_map<std::string, MaterialProperty> properties;
 
     private:
