@@ -6,6 +6,8 @@
 #include <variant>
 #include <array>
 #include <nlohmann/json.hpp>
+
+#include <optional>
     enum class MaterialState {
         FLUID,
         SOLID,
@@ -206,7 +208,7 @@
         std::string name;
         MaterialType type;
         std::string description;
-        std::string chemical_formula;
+        std::optional<std::string> chemical_formula;
         std::unordered_map<std::string, MaterialProperty> properties;
 
     private:

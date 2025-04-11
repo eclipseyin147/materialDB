@@ -11,21 +11,17 @@
 #include <iostream> // For cerr
 
 #include <boost/spirit/home/x3/support/utility/annotate_on_success.hpp>
-// 适配PropertyPair结构用于Boost.Fusion
 namespace x3 = boost::spirit::x3;
 
-// Define coefficient_type_symbols (assuming it's defined elsewhere or provide a placeholder)
-// Placeholder definition - replace with your actual symbol table/rule
+// Define coefficient_type_symbols
 x3::symbols<coefficientType> coefficient_type_symbols;
-
 void init_symbols() {
-    // Add symbols like "constant", "polynomialT", etc.
     coefficient_type_symbols.add
             ("constant", CONSTANT)
-            ("polynomialT", polynomialT)
-            ("polynomialTPieceLinearT", polynomialTPieceLinearT)
-            ("polynomialTPiecePolyT", polynomialTPiecePolyT)
-            ("nasa9PiecePolyT", nasa9PiecePolyT);
+            ("polynomial", polynomialT)
+            ("polynomial piecewise-linear", polynomialTPieceLinearT)
+            ("polynomial piecewise-polynomial", polynomialTPiecePolyT)
+            ("polynomial nasa-9-piecewise-polynomial", nasa9PiecePolyT);
 }
 
 BOOST_FUSION_ADAPT_STRUCT(
@@ -41,102 +37,76 @@ BOOST_FUSION_ADAPT_STRUCT(
         parameters          // std::vector<Parameter>
 )
 
-// Adapt structs needed for parsing
 BOOST_FUSION_ADAPT_STRUCT(
-        MaterialData,
-        name,               // std::string
-        type,               // std::string
-        properties          // std::vector<Property>
+    MaterialData,
+    name,
+    type,
+    properties
 )
 
-// --- Rule Definitions ---
-
-// Define basic rules first
 auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
-                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_."))];
+                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.")|x3::char_("<>")|x3::char_("<s>"))];
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
-                                = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
+    = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
 auto const boolean = x3::rule<struct boolean_, bool>{"boolean"}
-                             = x3::lit("#t")[([](auto &ctx) { x3::_val(ctx) = true; })]
-                               | x3::lit("#f")[([](auto &ctx) { x3::_val(ctx) = false; })];
+    = x3::lit("#t")[([](auto &ctx) { x3::_val(ctx) = true; })]
+    | x3::lit("#f")[([](auto &ctx) { x3::_val(ctx) = false; })];
 auto const number = x3::rule<struct number_, double>{"number"}
-                            = x3::double_ | x3::int_;
+    = x3::double_ | x3::int_;
 auto const vector1d = x3::rule<class vector1d_, std::vector<double>>{}
-                              = '(' >> *x3::double_ >> ')';
+    = '(' >> *x3::double_ >> ')';
 auto const vector2d = x3::rule<class vector2d_, std::vector<std::vector<double>>>{}
-                              = '(' >> *vector1d >> ')';
+    = '(' >> *vector1d >> ')';
 
-// Parameter rule (remains the same)
 auto const parameter = x3::rule<class parameter_, Parameter>{"parameter"}
-                               = '('
-                >> coefficient_type_symbols
-                >> (vector2d | ('.' >> (x3::double_[([](auto &ctx) {
-                    auto &param = x3::_val(ctx);
-                    param.values = {{x3::_attr(ctx)}};
-                })] | symbol[([](auto &ctx) {
-                    auto &param = x3::_val(ctx);
-                    param.values = {{-999.0}};
-                    param.string_value = x3::_attr(ctx);
-                })] | boolean[([](auto &ctx) {
-                    auto &param = x3::_val(ctx);
-                    param.string_value = x3::_attr(ctx) ? "#t" : "#f";
-                    param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
-                })])))
-                >> ')';
+    = '('
+    >> coefficient_type_symbols
+    >> (vector2d | ('.' >> (x3::double_[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.values = {{x3::_attr(ctx)}};
+    })] | symbol[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.values = {{-999.0}};
+        param.string_value = x3::_attr(ctx);
+    })] | boolean[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.string_value = x3::_attr(ctx) ? "#t" : "#f";
+        param.values = {{x3::_attr(ctx) ? 1.0 : 0.0}};
+    })])))
+    >> ')';
 
-// --- Refactored Property Rules ---
-
-// 1. Rule for the specific chemical-formula case
-// This rule synthesizes a Property directly.
-auto const chemical_formula_property_action = [](auto& ctx) {
-    // The attribute comes from the 'symbol' rule matched just before this action
+auto const chemical_formula_property_action = [](auto& ctx)
+        {
     std::string formula_str = x3::_attr(ctx);
-
-    // The value to synthesize is the Property object for this rule
     Property prop;
     prop.name = "chemical-formula";
 
     Parameter param;
     param.coeff = CONSTANT;
-    param.values = {{-999.0}}; // Marker
-    param.string_value = formula_str; // Assign the captured formula string
+    param.values = {{-999.0}};
+    param.string_value = formula_str;
 
     prop.parameters.push_back(param);
 
-    x3::_val(ctx) = prop; // Assign the constructed Property as the synthesized value
+    x3::_val(ctx) = prop;
 };
 
 auto const chemical_formula_property = x3::rule<class cfp_, Property>{"chemical_formula_property"}
-    = (x3::lit("chemical-formula") >> '.' >> symbol)[chemical_formula_property_action]; // Action attached here
+    = (x3::lit("chemical-formula") >> '.' >> symbol)[chemical_formula_property_action];
 
-// 2. Rule for the general property case (name >> *parameters)
-// Relies on BOOST_FUSION_ADAPT_STRUCT(Property, name, parameters)
 auto const general_property = x3::rule<class gp_, Property>{"general_property"}
-    = symbol >> *parameter; // Automatically maps symbol to name, *parameter to parameters vector
+    = symbol >> *parameter;
 
-// 3. Combine the two property formats into the main property rule
 auto const property = x3::rule<struct property_, Property>{"property"}
-    = '(' >> (chemical_formula_property | general_property) >> ')'; // Use alternative operator
+    = '(' >> (chemical_formula_property | general_property) >> ')';
 
-// --- Remaining Rules ---
-
-// Material rule (depends on symbol and property)
 auto const material = x3::rule<struct material_, MaterialData>{"material"}
-                              = '('
-                >> symbol       // name
-                >> symbol       // type
-                >> *property    // properties
-                >> ')';
+    = '(' >> symbol >> symbol >> *property >> ')';
 
-// Comment rule
 auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> x3::eol];
-
-// Top-level file rule (depends on material and comment)
 auto const scm_file = x3::rule<struct scm_file_, std::vector<MaterialData>>{"scm_file"}
-                              = x3::skip(comment | x3::space)[*material];
+    = x3::skip(comment | x3::space)[*material];
 
-// --- ScmParser::parse method and processProperties remain the same ---
-// ... (ScmParser::parse implementation) ...
 std::vector<Material> ScmParser::parse(const std::string &filename) {
     std::vector<Material> materials_out;
     init_symbols(); // Initialize symbol table
@@ -152,7 +122,6 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
     auto iter = content.begin();
     auto end = content.end();
     try {
-        // Use the globally defined rules here
         bool success = x3::phrase_parse(iter, end, scm_file, x3::space, parsed_materials);
         if (!success || iter != end) {
             std::cerr << "解析失败 at: '" << std::string(iter, std::min(iter + 20, end)) << "...'"
@@ -160,84 +129,144 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
             return materials_out;
         }
 
-        // Conversion loop
         for (const auto &mat_data: parsed_materials) {
             Material material;
             material.name = mat_data.name;
             std::string typeStr = mat_data.type;
             std::transform(typeStr.begin(), typeStr.end(), typeStr.begin(), ::toupper);
 
-            // Set MaterialState based on type string
             if (typeStr == "FLUID") {
                 material.type.state = MaterialState::FLUID;
             } else if (typeStr == "SOLID") {
                 material.type.state = MaterialState::SOLID;
             } else if (typeStr == "MIXTURE") {
                 material.type.state = MaterialState::MIXTURE;
-            } // Add other type checks as needed
+            }
 
             processProperties(material, mat_data);
             materials_out.push_back(material);
         }
-    }
-    catch (const x3::expectation_failure<std::string::iterator> &e) {
+    } catch (const x3::expectation_failure<std::string::iterator> &e) {
         std::cerr << "Parse expectation failure near '"
                   << std::string(e.where(), std::min(e.where() + 20, content.end())) << "': Expected "
                   << e.which() << std::endl;
-    }
-    catch (const std::exception &e) {
+    } catch (const std::exception &e) {
         std::cerr << "解析异常: " << e.what() << std::endl;
     }
 
     return materials_out;
 }
 
-// ... (processProperties implementation) ...
 void ScmParser::processProperties(Material &material, const MaterialData &mat_data) {
     for (const auto &prop: mat_data.properties) {
         const auto &key = prop.name;
 
-        // The chemical formula case should now be handled directly by the parsed Property object
-        // So, the special check here might need adjustment or removal depending on how you structure Material.properties
-
-        // Example processing based on the Property object structure:
+        // 处理化学式
         if (key == "chemical-formula" && !prop.parameters.empty()) {
             const auto &param = prop.parameters[0];
-            // Check if it was stored as a string using the special marker
             if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
                 param.values[0][0] == -999.0 && !param.string_value.empty()) {
-                material.properties["chemical-formula"] = { // Assuming Material::properties maps string to PropertyValue-like struct
-                        "chemical-formula", "", param.string_value, "string"
-                };
+                // 使用 MaterialProperty 结构
+                MaterialProperty mp;
+                mp.name = "chemical-formula";
+                mp.unit = "";
+                mp.type = "string";
+                mp.data = param.string_value;
+                material.properties["chemical-formula"] = mp;
+
+                // 设置 chemical_formula 字段
+                material.chemical_formula = param.string_value;
+            } else if (param.string_value == "#f" || param.string_value == "#t") {
+                // 处理 (chemical-formula . #f) 这种情况
+                MaterialProperty mp;
+                mp.name = "chemical-formula";
+                mp.unit = "";
+                mp.type = "boolean";
+                mp.data = (param.string_value == "#t") ? 1.0 : 0.0;
+                material.properties["chemical-formula"] = mp;
             }
-             continue; // Processed chemical formula
+            continue;
         }
 
-        // Handle general properties based on parameters
         if (!prop.parameters.empty()) {
-            const auto &param = prop.parameters[0]; // Still assuming one parameter for simplicity
-            bool processed = false;
-            // Boolean check
-            if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 && (param.values[0][0] == 1.0 || param.values[0][0] == 0.0) && !param.string_value.empty() && (param.string_value=="#t" || param.string_value=="#f")) {
-                 material.properties[key] = { key, "", (param.values[0][0] == 1.0), "boolean" };
-                 processed = true;
-            }
-            // String check
-            else if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 && param.values[0][0] == -999.0 && !param.string_value.empty()) {
-                 material.properties[key] = { key, "", param.string_value, "string" };
-                 processed = true;
-            }
-            // Number check
-            else if (!processed && param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1) {
-                 material.properties[key] = { key, "", param.values[0][0], "number" };
-                 processed = true; // Mark as processed
-            }
-            // Add checks for other coeff types (polynomialT, etc.) here
-            // else if (param.coeff == polynomialT) { ... processed = true; }
+            for (const auto &param: prop.parameters) {
+                bool processed = false;
 
+                // 创建新的 MaterialProperty
+                MaterialProperty mp;
+                mp.name = key;
+                mp.unit = ""; // Unit should be set based on property type if known
+
+                // 处理布尔值参数
+                if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
+                    (param.values[0][0] == 1.0 || param.values[0][0] == 0.0) && !param.string_value.empty() &&
+                    (param.string_value == "#t" || param.string_value == "#f")) {
+                    mp.type = "boolean";
+                    mp.data = (param.values[0][0] == 1.0) ? 1.0 : 0.0;
+                    material.properties[key] = mp;
+                    processed = true;
+                }
+                // 处理字符串参数
+                else if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
+                         param.values[0][0] == -999.0 && !param.string_value.empty()) {
+                    mp.type = "string";
+                    mp.data = param.string_value;
+                    material.properties[key] = mp;
+                    processed = true;
+                }
+                // 处理简单数值参数
+                else if (!processed && param.coeff == CONSTANT && param.values.size() == 1 &&
+                         param.values[0].size() == 1) {
+                    mp.type = "number";
+                    mp.data = param.values[0][0];
+                    material.properties[key] = mp;
+                    processed = true;
+                }
+                // 处理多项式或分段多项式参数
+                else if (!processed && (param.coeff == polynomialT ||
+                         param.coeff == polynomialTPieceLinearT ||
+                         param.coeff == polynomialTPiecePolyT ||
+                         param.coeff == nasa9PiecePolyT)) {
+
+                    if (param.coeff == polynomialT) {
+                        mp.type = "polynomial";
+                        PolynomialData polyData;
+                        if (!param.values.empty()) {
+                            polyData.coefficients = param.values[0];
+                            polyData.min_temp = 0.0;  // Default values, should be updated if available
+                            polyData.max_temp = 0.0;
+                            mp.data = polyData;
+                        }
+                    }
+                    else if (param.coeff == nasa9PiecePolyT) {
+                        mp.type = "nasa_polynomial";
+                        NASAPolynomialData nasaData;
+                        // Populate NASA polynomial data
+                        // This is a placeholder, actual implementation would depend on data format
+                        mp.data = nasaData;
+                    }
+                    else {  // polynomialTPieceLinearT or polynomialTPiecePolyT
+                        mp.type = "piecewise_polynomial";
+                        PiecewisePolynomialData piecewiseData;
+                        piecewiseData.coefficients = param.values;
+                        // Temperature ranges would need to be populated based on data format
+                        mp.data = piecewiseData;
+                    }
+
+                    material.properties[key] = mp;
+                    processed = true;
+                }
+
+                if (processed) break; // 已处理第一个参数，跳出循环
+            }
         } else {
-            // Handle properties with no parameters (flags)
-            material.properties[key] = { key, "", true, "boolean" };
+            // 无参数的属性，视为标志属性
+            MaterialProperty mp;
+            mp.name = key;
+            mp.unit = "";
+            mp.type = "boolean";
+            mp.data = 1.0;  // true as double
+            material.properties[key] = mp;
         }
     }
 }
