@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <string>
 #include <vector>
@@ -30,34 +30,30 @@ enum coefficientType {
 void init_symbols() ;
 
 
-// 属性参数：支持单值或列表
+
 struct Parameter {
     coefficientType coeff;
     std::vector<std::vector<double>> values;
-    std::string string_value; // 用于存储字符串值，如化学式
+    std::string string_value;
 };
 
-// 属性定义：如 (density (constant 1.225))
+
 struct Property {
     std::string name;
     std::vector<Parameter> parameters;
 };
 
-// 在您的头文件中添加以下定义
-// 在适当的位置添加（例如在 Material 类定义之前）
 struct PropertyValue {
-    std::string name;                  // 属性名称
-    std::string coefficient_type;      // 系数类型（如 "constant", "polynomial" 等）
-
-    // 使用 std::variant 支持多种类型的值
+    std::string name;
+    std::string coefficient_type;
     std::variant<
-        bool,                          // 布尔值
-        double,                        // 数值
-        std::string,                   // 字符串
-        std::vector<std::vector<double>>  // 多维数组（用于多项式系数等）
+        bool,
+        double,
+        std::string,
+        std::vector<std::vector<double>>
     > value;
 
-    std::string type;                  // 值类型："boolean", "number", "string", "polynomial" 等
+    std::string type;
 };
 
 

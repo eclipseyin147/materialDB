@@ -78,7 +78,7 @@ struct scm_file_class;
 
 auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
                             = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}") | x3::char_("<>") |
-                                           x3::char_("<s>"))];
+                                           x3::char_("<s>") | x3::char_("<l>") | x3::char_("<g>"))];
 
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
                                 = x3::lexeme['"' >> *(('\\' >> x3::char_) | ~x3::char_('"')) >> '"'];
@@ -129,8 +129,33 @@ auto const species_property = x3::rule<class species_property_, Property>{"speci
 
 ///< rules for polynomial types
 // Rule for parsing a single polynomial piece (a vector of coefficients)
+// Modified rule to support both formats:
+// 1. Regular list of doubles: (1.0 2.0 3.0)
+// 2. Temperature-value pair: (87 . 1117)
+
+auto const temp_value_pair = x3::rule<class temp_value_pair_, std::pair<double, double>>{}
+                                     = '(' >> x3::double_ >> '.' >> x3::double_ >> ')';
+
 auto const poly_piece = x3::rule<class poly_piece_, std::vector<double>>{}
-                                = '(' >> +x3::double_ >> ')';
+                                = (
+                // Option 1: Parse temp_value_pair format (temp . value)
+                temp_value_pair
+                [([](auto& ctx){
+                    // Attribute from temp_value_pair is std::pair<double, double>
+                    auto pair_attr = x3::_attr(ctx);
+                    // Convert pair to vector<double> for poly_piece attribute
+                    x3::_val(ctx) = {pair_attr.first, pair_attr.second};
+                    std::cout << "Parsed poly_piece as temp-value pair: (" << pair_attr.first << " . " << pair_attr.second << ")" << std::endl;
+                })]
+                |
+                // Option 2: Parse original list of doubles format (double double ...)
+                ('(' >> +x3::double_ >> ')')
+                [([](auto& ctx){
+                    // Attribute from +x3::double_ is already std::vector<double>
+                    x3::_val(ctx) = x3::_attr(ctx);
+                    std::cout << "Parsed poly_piece as list of doubles with " << x3::_val(ctx).size() << " elements" << std::endl;
+                })]
+        );
 
 // Rule for parsing a piecewise polynomial (a vector of polynomial pieces)
 auto const piecewise_poly = x3::rule<class piecewise_poly_, std::vector<std::vector<double>>>{}
@@ -139,6 +164,28 @@ auto const piecewise_poly = x3::rule<class piecewise_poly_, std::vector<std::vec
 // Rule for parsing a NASA-9 piecewise polynomial
 auto const nasa9_poly = x3::rule<class nasa9_poly_, std::vector<std::vector<double>>>{}
                                 = +poly_piece;
+
+
+auto const piecewise_linear = x3::rule<class piecewise_linear_, std::vector<std::vector<double>>>{}
+                                      = x3::lit("polynomial") >> x3::lit("piecewise-linear") >> '(' >>
+                                                              *temp_value_pair[([](auto &ctx) {
+                                                                  // Extract each temp-value pair and organize into two vectors
+                                                              })] >> ')';
+
+auto const piecewise_linear_data = x3::rule<class piecewise_linear_data_, std::vector<std::vector<double>>>{}
+                                           = '(' >> *(temp_value_pair[([](auto &ctx) {
+            auto &pairs = x3::_val(ctx);
+            auto pair = x3::_attr(ctx);
+
+            // If the vectors don't exist yet, create them
+            if (pairs.size() < 2) {
+                pairs.resize(2);
+            }
+
+            // Store temperature in the first vector and value in the second
+            pairs[0].push_back(pair.first);
+            pairs[1].push_back(pair.second);
+        })]) >> ')';
 
 
 auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
@@ -171,19 +218,19 @@ auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                                       << std::endl;
                         })]))
                         // 处理多项式类型 - 先处理可能的子类型关键字，然后解析多项式数据
-                        | ((x3::lit("piecewise-polynomial") | x3::lit("nasa-9-piecewise-polynomial")) >>
-                                                                                                      (+poly_piece)[([](
-                                                                                                              auto &ctx) {
-                                                                                                          auto &param = x3::_val(
-                                                                                                                  ctx);
-                                                                                                          param.values = x3::_attr(
-                                                                                                                  ctx);
-                                                                                                          std::cout
-                                                                                                                  << "Parsed polynomial structure with "
-                                                                                                                  << param.values.size()
-                                                                                                                  << " pieces"
-                                                                                                                  << std::endl;
-                                                                                                      })])
+//                        | ((x3::lit("piecewise-polynomial") | x3::lit("nasa-9-piecewise-polynomial") | x3::lit("polynomial piecewise-linear")) >>
+//                                                                                                      (+poly_piece)[([](
+//                                                                                                              auto &ctx) {
+//                                                                                                          auto &param = x3::_val(
+//                                                                                                                  ctx);
+//                                                                                                          param.values = x3::_attr(
+//                                                                                                                  ctx);
+//                                                                                                          std::cout
+//                                                                                                                  << "********Parsed polynomial structure with "
+//                                                                                                                  << param.values.size()
+//                                                                                                                  << " pieces"
+//                                                                                                                  << std::endl;
+//                                                                                                      })])
                         // 处理普通数值列表 - 用于 compressible-liquid 等类型
                         | (+x3::double_)[([](auto &ctx) {
                             auto &param = x3::_val(ctx);
@@ -195,7 +242,7 @@ auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                         | (+poly_piece)[([](auto &ctx) {
                             auto &param = x3::_val(ctx);
                             param.values = x3::_attr(ctx);
-                            std::cout << "Parsed nested polynomial structure with " << param.values.size() << " pieces"
+                            std::cout << "######## Parsed nested polynomial structure with " << param.values.size() << " pieces"
                                       << std::endl;
                         })]
                         // 处理任意内容 - 作为最后的备选方案
@@ -257,7 +304,8 @@ auto const chemical_formula_property = x3::rule<chemical_formula_property_class,
             auto &prop = x3::_val(ctx);
             prop.name = "chemical-formula";
             prop.parameters.push_back(x3::_attr(ctx));
-            std::cout << "Parsed chemical formula property with parameter" << std::endl;
+            std::cout << "Parsed chemical formula property with parameter: " << prop.parameters[0].string_value
+                      << std::endl;
         })];
 
 
@@ -279,57 +327,284 @@ auto const general_property = x3::rule<general_property_class, Property>{"genera
                 })])
         );
 
-// 定义属性规则
-// 定义属性规则
-auto const property = x3::rule<property_class, Property>{"property"}
-                              = '(' >> (
-                (x3::lit("chemical-formula") >> simple_parameter)[([](auto &ctx) {
-                    auto &prop = x3::_val(ctx);
-                    prop.name = "chemical-formula";
-                    prop.parameters.push_back(x3::_attr(ctx));
-                    std::cout << "Parsed chemical formula property with parameter" << std::endl;
-                })]
-                | species_property[([](auto &ctx) {
-                    auto &prop = x3::_val(ctx);
-                    const Property &parsed = x3::_attr(ctx);
-                    prop.name = parsed.name;
-                    prop.parameters = parsed.parameters;
-                    std::cout << "Parsed species property with " << prop.parameters.size() << " parameters"
-                              << std::endl;
-                })]
-                | (symbol >> *parameter)[([](auto &ctx) {
-                    auto &prop = x3::_val(ctx);
-                    auto &attr = x3::_attr(ctx);
-                    prop.name = boost::fusion::at_c<0>(attr);
-                    auto &params = boost::fusion::at_c<1>(attr);
-                    for (auto it = params.begin(); it != params.end(); ++it) {
-                        prop.parameters.push_back(*it);
+// Define a rule for parsing a list of particle types
+auto const particle_types = x3::rule<class particle_types_, std::vector<std::string>>{}
+                                    = +symbol;
+
+// Define a rule for parsing fluid property with particle types
+auto const fluid_property = x3::rule<class fluid_property_, Property>{"fluid_property"}
+                                    = (x3::lit("fluid") >> -particle_types)[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            prop.name = "fluid";
+
+            // Create a parameter to hold the particle types
+            Parameter param;
+            param.coeff = CONSTANT;
+            param.string_value = "particle_types"; // Marker to indicate this contains particle types
+
+            // Store the particle types in the parameter
+            auto types = x3::_attr(ctx);
+            if (types) { // Check if particle types were provided
+                for (const auto &type: *types) {
+                    // For each type, add a value of -999.0 as a placeholder
+                    param.values.push_back({-999.0});
+                    // And store the actual type in the string_value
+                    if (param.string_value.size() > 13) { // > "particle_types"
+                        param.string_value += " ";
                     }
-                    std::cout << "Parsed property: " << prop.name
-                              << " with " << prop.parameters.size() << " parameters" << std::endl;
-                })]
-        ) >> ')';
+                    param.string_value += type;
+                }
+            }
+
+            prop.parameters.push_back(param);
+            std::cout << "Parsed fluid property with " << (types ? types->size() : 0) << " particle types" << std::endl;
+        })];
+
+// Define a rule for parsing a material type property enclosed in parentheses
+auto const material_type_property = x3::rule<class material_type_property_, Property>{"material_type_property"}
+                                            = '(' >> symbol[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            std::string type = x3::_attr(ctx);
+
+            // Only handle known material types
+            if (type == "solid" || type == "fluid" || type == "mixture") {
+                prop.name = type;
+                std::cout << "Parsed material type property: " << type << std::endl;
+            } else {
+                // If not a known material type, set to empty (will be ignored later)
+                prop.name = "";
+            }
+        })] >> *symbol[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            if (!prop.name.empty()) {  // Only process particle types if material type is valid
+                std::string particle_type = x3::_attr(ctx);
+
+                // Create parameter to hold particle types
+                if (prop.parameters.empty()) {
+                    Parameter param;
+                    param.coeff = CONSTANT;
+                    param.string_value = "particle_types";
+                    prop.parameters.push_back(param);
+                }
+
+                // Add particle type
+                auto &param = prop.parameters[0];
+                param.values.push_back({-999.0});
+                if (param.string_value.size() > 13) {  // > "particle_types"
+                    param.string_value += " ";
+                }
+                param.string_value += particle_type;
+
+                std::cout << "Added particle type: " << particle_type << " to " << prop.name << std::endl;
+            }
+        })] >> ')';
+
+// 定义属性规则
+// 定义属性规则
+// Update the property rule to include the fluid_property
+auto const property = x3::rule<property_class, Property>{"property"}
+    = '(' >> (
+        (x3::lit("chemical-formula") >> simple_parameter)[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            prop.name = "chemical-formula";
+            prop.parameters.push_back(x3::_attr(ctx));
+            std::cout << "Parsed chemical formula property with parameter" << std::endl;
+        })]
+        | species_property[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            const Property &parsed = x3::_attr(ctx);
+            prop.name = parsed.name;
+            prop.parameters = parsed.parameters;
+            std::cout << "Parsed species property with " << prop.parameters.size() << " parameters" << std::endl;
+        })]
+        | fluid_property[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            const Property &parsed = x3::_attr(ctx);
+            prop.name = parsed.name;
+            prop.parameters = parsed.parameters;
+            std::cout << "Parsed fluid property with " << prop.parameters.size() << " parameters" << std::endl;
+        })]
+        | material_type_property[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            const Property &parsed = x3::_attr(ctx);
+            if (!parsed.name.empty()) {
+                prop.name = parsed.name;
+                prop.parameters = parsed.parameters;
+                std::cout << "Parsed material type property with " << prop.parameters.size() << " parameters" << std::endl;
+            }
+        })]
+        | (symbol >> *parameter)[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            auto &attr = x3::_attr(ctx);
+            prop.name = boost::fusion::at_c<0>(attr);
+            auto &params = boost::fusion::at_c<1>(attr);
+            for (auto it = params.begin(); it != params.end(); ++it) {
+                prop.parameters.push_back(*it);
+            }
+            std::cout << "Parsed property: " << prop.name
+                      << " with " << prop.parameters.size() << " parameters" << std::endl;
+        })]
+    ) >> ')';
 
 // 定义材料规则
+// Define a rule for parsing material type with optional particle types
+auto const material_type_with_particles = x3::rule<class material_type_with_particles_, std::pair<std::string, std::vector<std::string>>>{}
+                                                  = symbol[([](auto &ctx) {
+            auto &type_pair = x3::_val(ctx);
+            type_pair.first = x3::_attr(ctx); // The material type (solid, fluid, etc.)
+        })] >> *symbol[([](auto &ctx) {
+            auto &type_pair = x3::_val(ctx);
+            type_pair.second.push_back(x3::_attr(ctx)); // Add particle type
+        })];
+
+
+
+// 定义单独的材料类型属性规则
+auto const standalone_material_type = x3::rule<class standalone_material_type_, Property>{"standalone_material_type"}
+                                              = symbol[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            std::string type = x3::_attr(ctx);
+
+            // 只处理已知的材料类型
+            if (type == "solid" || type == "fluid" || type == "mixture") {
+                prop.name = type;
+                std::cout << "Parsed standalone material type: " << type << std::endl;
+            } else {
+                // 如果不是已知的材料类型，则设置为空，后续会被忽略
+                prop.name = "";
+            }
+        })] >> *symbol[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            if (!prop.name.empty()) {  // 只有当材料类型有效时才处理粒子类型
+                std::string particle_type = x3::_attr(ctx);
+
+                // 创建参数来保存粒子类型
+                if (prop.parameters.empty()) {
+                    Parameter param;
+                    param.coeff = CONSTANT;
+                    param.string_value = "particle_types";
+                    prop.parameters.push_back(param);
+                }
+
+                // 添加粒子类型
+                auto &param = prop.parameters[0];
+                param.values.push_back({-999.0});
+                if (param.string_value.size() > 13) {  // > "particle_types"
+                    param.string_value += " ";
+                }
+                param.string_value += particle_type;
+
+                std::cout << "Added particle type: " << particle_type << " to " << prop.name << std::endl;
+            }
+        })];
+
 // 定义材料规则
+// 修改材料规则
 auto const material = x3::rule<material_class, MaterialData>{"material"}
-                              = '(' >> symbol[([](auto &ctx) {
+    = '(' >> symbol[([](auto &ctx) {
+        auto &mat = x3::_val(ctx);
+        mat.name = x3::_attr(ctx);
+        std::cout << "Parsed material name: " << mat.name << std::endl;
+    })] >>
+    // 确保材料类型在材料名称之后立即解析
+    (
+        // 处理括号内的材料类型声明，如 (solid inert-particle)
+        ('(' >> symbol[([](auto &ctx) {
             auto &mat = x3::_val(ctx);
-            mat.name = x3::_attr(ctx);
-            std::cout << "Parsed material name: " << mat.name << std::endl;
-        })] >> symbol[([](auto &ctx) {
+            std::string type = x3::_attr(ctx);
+
+            // 设置材料类型
+            if (type == "solid" || type == "fluid" || type == "mixture") {
+                mat.type = type;
+                std::cout << "Parsed material type in parentheses: " << type << std::endl;
+
+                // 创建属性
+                Property prop;
+                prop.name = type;
+                mat.properties.push_back(prop);
+            }
+        })] >> *symbol[([](auto &ctx) {
             auto &mat = x3::_val(ctx);
-            mat.type = x3::_attr(ctx);
-            std::cout << "Parsed material type: " << mat.type << std::endl;
-        })] >> *(
-                property[([](auto &ctx) {
-                    auto &mat = x3::_val(ctx);
-                    const Property &prop = x3::_attr(ctx);
-                    mat.properties.push_back(prop);
-                    std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
-                })]
-                | comment
-        ) >> ')';
+            std::string particle_type = x3::_attr(ctx);
+
+            // 确保最后一个属性是材料类型属性
+            if (!mat.properties.empty()) {
+                Property &prop = mat.properties.back();
+                if (prop.name == mat.type) {
+                    // 创建参数来保存粒子类型
+                    if (prop.parameters.empty()) {
+                        Parameter param;
+                        param.coeff = CONSTANT;
+                        param.string_value = "particle_types";
+                        prop.parameters.push_back(param);
+                    }
+
+                    // 添加粒子类型
+                    auto &param = prop.parameters[0];
+                    param.values.push_back({-999.0});
+                    if (param.string_value.size() > 13) { // > "particle_types"
+                        param.string_value += " ";
+                    }
+                    param.string_value += particle_type;
+
+                    std::cout << "Added particle type: " << particle_type << " to " << prop.name << std::endl;
+                }
+            }
+        })] >> ')')
+        |
+        // 处理直接的材料类型声明，如 solid inert-particle
+        (symbol[([](auto &ctx) {
+            auto &mat = x3::_val(ctx);
+            std::string type = x3::_attr(ctx);
+
+            // 设置材料类型
+            if (type == "solid" || type == "fluid" || type == "mixture") {
+                mat.type = type;
+                std::cout << "Parsed direct material type: " << type << std::endl;
+
+                // 创建属性
+                Property prop;
+                prop.name = type;
+                mat.properties.push_back(prop);
+                std::cout << "Added standalone material type property: " << prop.name << std::endl;
+            }
+        })] >> *symbol[([](auto &ctx) {
+            auto &mat = x3::_val(ctx);
+            std::string particle_type = x3::_attr(ctx);
+
+            // 确保最后一个属性是材料类型属性
+            if (!mat.properties.empty()) {
+                Property &prop = mat.properties.back();
+                if (prop.name == mat.type) {
+                    // 创建参数来保存粒子类型
+                    if (prop.parameters.empty()) {
+                        Parameter param;
+                        param.coeff = CONSTANT;
+                        param.string_value = "particle_types";
+                        prop.parameters.push_back(param);
+                    }
+
+                    // 添加粒子类型
+                    auto &param = prop.parameters[0];
+                    param.values.push_back({-999.0});
+                    if (param.string_value.size() > 13) { // > "particle_types"
+                        param.string_value += " ";
+                    }
+                    param.string_value += particle_type;
+
+                    std::cout << "Added particle type: " << particle_type << " to " << prop.name << std::endl;
+                }
+            }
+        })])
+    ) >> *(
+        property[([](auto &ctx) {
+            auto &mat = x3::_val(ctx);
+            const Property &prop = x3::_attr(ctx);
+            mat.properties.push_back(prop);
+            std::cout << "Added property " << prop.name << " to material " << mat.name << std::endl;
+        })]
+        | comment
+    ) >> ')';
 
 // 定义 SCM 文件规则
 auto const scm_file = x3::rule<scm_file_class, std::vector<MaterialData>>{"scm_file"}
@@ -393,7 +668,6 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
             } else if (typeStr == "MIXTURE") {
                 material.type.state = MaterialState::MIXTURE;
             }
-
             processProperties(material, mat_data);
             materials_out.push_back(material);
         }
@@ -411,12 +685,61 @@ std::vector<Material> ScmParser::parse(const std::string &filename) {
 void ScmParser::processProperties(Material &material, const MaterialData &mat_data) {
     for (const auto &prop: mat_data.properties) {
         const auto &key = prop.name;
+        // In the processProperties method, update the fluid property handling
+// In the processProperties method, update the fluid property handling
+        if (key == "fluid")
+        {
+            // Ensure the material state is set to FLUID
+            material.type.state = MaterialState::FLUID;
 
+            if (!prop.parameters.empty()) {
+                const auto &param = prop.parameters[0];
+                if (param.string_value.find("particle_types") == 0) {
+                    // Extract particle types from the string_value
+                    std::string types_str = param.string_value.substr(14); // Skip "particle_types "
+                    std::istringstream iss(types_str);
+                    std::vector<std::string> particle_types;
+                    std::string type;
+                    while (iss >> type) {
+                        particle_types.push_back(type);
+                    }
+                    // Create a MaterialProperty for the particle types
+                    MaterialProperty mp;
+                    mp.name = "fluid";
+                    mp.unit = "";
+                    mp.type = "string_array";
+                    mp.data = particle_types;
+                    material.properties["fluid"] = mp;
+
+                    // Set the particle flags in the material's type
+                    for (const auto &type: particle_types) {
+                        if (type == "inert-particle") {
+                            material.type.addParticleType(ParticleType::INERT_PARTICLE);
+                        } else if (type == "droplet-particle") {
+                            material.type.addParticleType(ParticleType::DROPLET_PARTICLE);
+                        } else if (type == "combusting-particle") {
+                            material.type.addParticleType(ParticleType::COMBUSTING_PARTICLE);
+                        }
+                    }
+
+                    std::cout << "Added " << particle_types.size() << " particle types to material" << std::endl;
+                }
+            } else
+            {
+                // If there are no parameters, just set the material state to FLUID
+                MaterialProperty mp;
+                mp.name = "fluid";
+                mp.unit = "";
+                mp.type = "boolean";
+                mp.data = 1.0;  // true as double
+                material.properties["fluid"] = mp;
+            }
+            continue;
+        }
         // 处理化学式
         if (key == "chemical-formula" && !prop.parameters.empty()) {
             const auto &param = prop.parameters[0];
-            if (param.coeff == CONSTANT && param.values.size() == 1 && param.values[0].size() == 1 &&
-                param.values[0][0] == -999.0 && !param.string_value.empty()) {
+            if (param.coeff == CONSTANT && !param.string_value.empty()) {
                 // 使用 MaterialProperty 结构
                 MaterialProperty mp;
                 mp.name = "chemical-formula";
@@ -427,6 +750,8 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
 
                 // 设置 chemical_formula 字段
                 material.chemical_formula = param.string_value;
+
+                std::cout << "Set chemical formula to: " << param.string_value << std::endl;
             } else if (param.string_value == "#f" || param.string_value == "#t") {
                 // 处理 (chemical-formula . #f) 这种情况
                 MaterialProperty mp;
@@ -503,6 +828,30 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                 mp.type = "boolean";
                 mp.data = (param.string_value == "#t") ? 1.0 : 0.0;
                 material.properties["chemical-formula"] = mp;
+            }
+                // In the processProperties method, update the handling for polynomialTPieceLinearT
+            else if (param.coeff == polynomialTPieceLinearT) {
+                MaterialProperty mp;
+                mp.type = "piecewise_polynomial";
+                PiecewisePolynomialData piecewiseData;
+
+                // For piecewise-linear, we expect two vectors: temperatures and values
+                if (param.values.size() == 2) {
+                    // First vector contains temperatures, second contains values
+                    piecewiseData.temp_ranges = param.values[0];
+
+                    // Create coefficients for each temperature point (just the value as a constant)
+                    for (size_t i = 0; i < param.values[1].size(); ++i) {
+                        piecewiseData.coefficients.push_back({param.values[1][i]});
+                    }
+
+                    mp.data = piecewiseData;
+                    std::cout << "Created piecewise polynomial data with "
+                              << piecewiseData.temp_ranges.size() << " temperature points" << std::endl;
+                }
+
+                material.properties[key] = mp;
+
             }
 
             continue;
