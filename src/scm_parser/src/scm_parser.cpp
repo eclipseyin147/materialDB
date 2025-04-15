@@ -14,6 +14,8 @@ namespace x3 = boost::spirit::x3;
 
 // Define coefficient_type_symbols
 x3::symbols<coefficientType> coefficient_type_symbols;
+x3::symbols<binaryDiffusModelType> binDiff_type_symbols;
+x3::symbols<binaryDiffusModelParam> binDiff_param_symbols;
 
 void init_symbols() {
     coefficient_type_symbols.add
@@ -26,6 +28,14 @@ void init_symbols() {
             ("sutherland", sutherlandT)
             ("power-law", powerLawT)
             ("blottner-curve-fit", blottnerT);
+
+    binDiff_type_symbols.add
+            ("constant", CONSTANT_DIFFUSION)
+            ("film-averaged", FILM_AVERAGED_DIFFUSION);
+
+    binDiff_param_symbols.add
+            ("averaging-coefficient", AVERAGING_COEFF)
+            ("film-diffusivity", FILM_DIFFUSIVITY);
 }
 
 BOOST_FUSION_ADAPT_STRUCT(

@@ -17,10 +17,15 @@ int main()
     
     // 解析SCM文件
     ScmParser parser;
+
     auto materials = parser.parse("propdb.scm");
     
     // 创建数据库连接
     sqlite3* db;
+    if(std::filesystem::exists("materials.db"))
+    {
+        std::filesystem::remove("materials.db");
+    }
     int rc = sqlite3_open("materials.db", &db);
     
     // 创建材料表

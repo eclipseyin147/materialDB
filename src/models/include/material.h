@@ -27,9 +27,9 @@ NLOHMANN_JSON_SERIALIZE_ENUM(MaterialState,
 
 enum ParticleType {
     NONE = 0,
-    INERT_PARTICLE = 1 << 0,
-    DROPLET_PARTICLE = 1 << 1,
-    COMBUSTING_PARTICLE = 1 << 2
+    INERT_PARTICLE,
+    DROPLET_PARTICLE,
+    COMBUSTING_PARTICLE
 };
 
 NLOHMANN_JSON_SERIALIZE_ENUM(ParticleType,
@@ -39,6 +39,35 @@ NLOHMANN_JSON_SERIALIZE_ENUM(ParticleType,
                                  { DROPLET_PARTICLE, "dropletParticle" },
                                  { COMBUSTING_PARTICLE, "combustionParticle" }
                              })
+
+enum binaryDiffusModelType
+{
+    INVALID_DIFFUSION = -1,
+    CONSTANT_DIFFUSION,
+    FILM_AVERAGED_DIFFUSION
+};
+
+NLOHMANN_JSON_SERIALIZE_ENUM(binaryDiffusModelType,
+                             {
+                                 { INVALID_DIFFUSION, nullptr },
+                                 { CONSTANT_DIFFUSION, "constant" },
+                                 { FILM_AVERAGED_DIFFUSION, "film-averaged" }
+                             })
+
+enum binaryDiffusModelParam
+{
+    INVALID_DIFFUSION_PARAM = -1,
+    AVERAGING_COEFF,
+    FILM_DIFFUSIVITY
+};
+
+NLOHMANN_JSON_SERIALIZE_ENUM(binaryDiffusModelParam,
+                             {
+                                 { INVALID_DIFFUSION_PARAM, nullptr },
+                                 { AVERAGING_COEFF, "averaging-coefficient" },
+                                 { FILM_DIFFUSIVITY, "film-diffusivity" }
+                             })
+
 
 struct MaterialType {
     MaterialType() = default;
@@ -52,7 +81,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(MaterialType, state, particle_fl
 
 struct NASAPolynomialData {
     std::array<std::vector<double>, 3> segments;
-    std::array<double, 2> temp_ranges;
+    std::array<double, 2> temp_ranges = {0.0, 0.0};
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(NASAPolynomialData, segments, temp_ranges)
@@ -78,6 +107,18 @@ struct PolynomialData {
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PolynomialData, coefficients)
 
+struct compressibleLiquidData {
+    std::vector<double> coefficients;
+};
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(compressibleLiquidData, coefficients)
+
+struct blottnerData {
+    std::vector<double> coefficients;
+};
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(blottnerData, coefficients)
+
 
 
 enum coefficientType {
@@ -97,15 +138,15 @@ NLOHMANN_JSON_SERIALIZE_ENUM(coefficientType,
                              {
                                  { NONET, nullptr },
                                  { CONSTCOEFF, "constant" },
-                                 { compressibleT, "compressible" },
+                                 { compressibleT, "compressible-liquid" },
                                  { sutherlandT, "sutherland" },
                                  { powerLawT, "power-law" },
-                                 { blottnerT, "blottner" },
+                                 { blottnerT, "blottner-curve-fit" },
                                  { polynomialT, "polynomial" },
                                  { polynomialTPieceLinearT, "polynomial piecewise-linear" },
                                  { polynomialTPiecePolyT, "polynomial piecewise-polynomial" },
                                  { nasa9PiecePolyT, "polynomial nasa-9-piecewise-polynomial" }
-                                 })
+                             })
 
 
 struct MaterialProperty {
@@ -114,6 +155,10 @@ struct MaterialProperty {
     std::string unit;
     double constData = 0.0;
     PolynomialData polydata;
+
+    compressibleLiquidData compLiquidData;
+
+    blottnerData blottnerdata;
 
     const PolynomialData &getPolydata() const;
 
@@ -131,8 +176,20 @@ struct MaterialProperty {
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(MaterialProperty, name, coeffType, unit, constData, polydata, ppldata,
-                                                nasapolydata, pwpolydata)
+                                                nasapolydata, pwpolydata,blottnerdata,compLiquidData)
 
+
+struct FilmAveragedDiffusivityData {
+    double averaging_coefficient;
+    MaterialProperty film_diffusivity;
+};
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(FilmAveragedDiffusivityData, averaging_coefficient, film_diffusivity)
+
+struct binaryDiffusivityData
+{
+
+};
 
 class Material {
 public:
