@@ -32,3 +32,19 @@ void Material::parseScmThermoData(const std::string& thermoBlock) {
     }
 }
 
+const PolynomialData &MaterialProperty::getPolydata() const
+{
+    return polydata;
+}
+
+const NASAPolynomialData &MaterialProperty::getNasaPolydata() const {
+    return nasapolydata;
+}
+
+const polyPiecewiseLinearData &MaterialProperty::getPolyPiecewiseLinearData() const {
+    return ppldata;
+}
+
+const PiecewisePolynomialData &MaterialProperty::getPiecewisePolyData() const {
+    return pwpolydata;
+}

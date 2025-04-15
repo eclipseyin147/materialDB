@@ -114,11 +114,20 @@ struct MaterialProperty {
     std::string unit;
     double constData = 0.0;
     PolynomialData polydata;
+
+    const PolynomialData &getPolydata() const;
+
     polyPiecewiseLinearData ppldata;
+
+    const polyPiecewiseLinearData &getPolyPiecewiseLinearData() const;
+
     NASAPolynomialData nasapolydata;
+
+    const NASAPolynomialData &getNasaPolydata() const;
+
     PiecewisePolynomialData pwpolydata;
 
-
+    const PiecewisePolynomialData &getPiecewisePolyData() const;
 };
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(MaterialProperty, name, coeffType, unit, constData, polydata, ppldata,
