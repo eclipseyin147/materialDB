@@ -23,13 +23,12 @@ void Material::parseScmThermoData(const std::string& thermoBlock) {
         // 解析温度范围
         std::regex tempRegex(R"(\((\d+\.?\d*)\s+(\d+\.?\d*)\))");
         if (std::regex_search(thermoBlock, match, tempRegex)) {
-            poly.min_temp = std::stod(match[1].str());
-            poly.max_temp = std::stod(match[2].str());
+
         }
         
-        properties["specific-heat"] = {
-            "specific-heat", "J/(kg·K)", poly, "polynomial"
-        };
+//        properties["specific-heat"] .push_back( {
+//            "specific-heat", "J/(kg·K)", poly, "polynomial"
+//        });
     }
 }
 

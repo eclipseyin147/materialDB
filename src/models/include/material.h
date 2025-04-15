@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <variant>
 #include <array>
@@ -9,199 +10,134 @@
 #include <sstream>  // For std::istringstream
 #include <optional>
 
-enum class MaterialState {
+enum MaterialState {
+    INVALID = -1,
     FLUID,
     SOLID,
     MIXTURE
 };
 
-enum class ParticleType {
+NLOHMANN_JSON_SERIALIZE_ENUM(MaterialState,
+                             {
+                                 { INVALID, nullptr },
+                                 { FLUID, "fluid" },
+                                 { SOLID, "solid" },
+                                 { MIXTURE, "mixture" }
+                             })
+
+enum ParticleType {
     NONE = 0,
     INERT_PARTICLE = 1 << 0,
     DROPLET_PARTICLE = 1 << 1,
     COMBUSTING_PARTICLE = 1 << 2
 };
 
-struct MaterialType {
-    MaterialState state;
-    int particle_flags;
+NLOHMANN_JSON_SERIALIZE_ENUM(ParticleType,
+                             {
+                                 { NONE, nullptr },
+                                 { INERT_PARTICLE, "inertParticle" },
+                                 { DROPLET_PARTICLE, "dropletParticle" },
+                                 { COMBUSTING_PARTICLE, "combustionParticle" }
+                             })
 
+struct MaterialType {
     MaterialType() = default;
 
-    explicit MaterialType(int flags) : particle_flags(flags) {}
-
-    bool hasParticleType(ParticleType type) const {
-        return particle_flags & static_cast<int>(type);
-    }
-
-    void addParticleType(ParticleType type) {
-        particle_flags |= static_cast<int>(type);
-    }
-
-    void removeParticleType(ParticleType type) {
-        particle_flags &= ~static_cast<int>(type);
-    }
+    MaterialState state;
+    std::unordered_set<ParticleType> particle_flags;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(MaterialType, state, particle_flags)
+
 
 struct NASAPolynomialData {
     std::array<std::vector<double>, 3> segments;
     std::array<double, 2> temp_ranges;
 };
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(NASAPolynomialData, segments, temp_ranges)
+
 struct polyPiecewiseLinearData {
     std::vector<double> temp_ranges;
     std::vector<double> coefficients;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(polyPiecewiseLinearData, temp_ranges, coefficients)
+
 
 struct PiecewisePolynomialData {
     std::vector<std::vector<double>> coefficients;
     std::vector<double> temp_ranges;
 };
 
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PiecewisePolynomialData, coefficients, temp_ranges)
+
 struct PolynomialData {
     std::vector<double> coefficients;
-    double min_temp;
-    double max_temp;
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(PolynomialData, coefficients)
+
+
+
+enum coefficientType {
+    NONET = 0,
+    CONSTCOEFF,
+    compressibleT,
+    sutherlandT,
+    powerLawT,
+    blottnerT,
+    polynomialT,
+    polynomialTPieceLinearT,                 ///< std::vector<double>
+    polynomialTPiecePolyT,   ///< std::vector<std::array<double, 7>>
+    nasa9PiecePolyT   ///< std::vector<std::array<double, 9>>
+};
+
+NLOHMANN_JSON_SERIALIZE_ENUM(coefficientType,
+                             {
+                                 { NONET, nullptr },
+                                 { CONSTCOEFF, "constant" },
+                                 { compressibleT, "compressible" },
+                                 { sutherlandT, "sutherland" },
+                                 { powerLawT, "power-law" },
+                                 { blottnerT, "blottner" },
+                                 { polynomialT, "polynomial" },
+                                 { polynomialTPieceLinearT, "polynomial piecewise-linear" },
+                                 { polynomialTPiecePolyT, "polynomial piecewise-polynomial" },
+                                 { nasa9PiecePolyT, "polynomial nasa-9-piecewise-polynomial" }
+                                 })
+
 
 struct MaterialProperty {
     std::string name;
+    coefficientType coeffType;
     std::string unit;
-    std::variant<double, std::vector<double>, std::string, std::vector<std::string>, polyPiecewiseLinearData, PolynomialData, NASAPolynomialData, PiecewisePolynomialData> data;
-    std::string type;
+    double constData = 0.0;
+    PolynomialData polydata;
+    polyPiecewiseLinearData ppldata;
+    NASAPolynomialData nasapolydata;
+    PiecewisePolynomialData pwpolydata;
+
+
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(MaterialProperty, name, coeffType, unit, constData, polydata, ppldata,
+                                                nasapolydata, pwpolydata)
 
 
 class Material {
 public:
     Material() = default;
 
-    // 从SCM字符串创建Material对象
-//        static Material fromScmString(const std::string &scmContent) {
-//            return Material(scmContent);
-//        }
 
     // 从SQLite数据库行创建Material对象
     static Material fromSqlite(const std::string &dbRow);
-
-    // 获取JSON字符串
-    std::string toJson() const {
-        nlohmann::json j;
-        j["name"] = name;
-        j["type"] = static_cast<int>(type.state);
-        j["description"] = description;
-
-        nlohmann::json propsJson;
-        for (const auto &[key, prop]: properties) {
-            nlohmann::json propJson;
-            propJson["name"] = prop.name;
-            propJson["unit"] = prop.unit;
-            propJson["type"] = prop.type;
-
-            std::visit([&](auto &&arg) {
-                using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, std::vector<double>>) {
-                    propJson["data"] = arg;
-                } else if constexpr (std::is_same_v<T, std::string>) {
-                    propJson["data"] = arg;
-                } else if constexpr (std::is_same_v<T, PolynomialData>) {
-                    nlohmann::json polyJson;
-                    polyJson["coefficients"] = arg.coefficients;
-                    polyJson["min_temp"] = arg.min_temp;
-                    polyJson["max_temp"] = arg.max_temp;
-                    propJson["data"] = polyJson;
-                } else if constexpr (std::is_same_v<T, NASAPolynomialData>) {
-                    nlohmann::json nasaJson;
-                    nasaJson["segments"] = arg.segments;
-                    nasaJson["temp_ranges"] = arg.temp_ranges;
-                    propJson["data"] = nasaJson;
-                } else if constexpr (std::is_same_v<T, PiecewisePolynomialData>) {
-                    nlohmann::json piecewiseJson;
-                    piecewiseJson["coefficients"] = arg.coefficients;
-                    piecewiseJson["temp_ranges"] = arg.temp_ranges;
-                    propJson["data"] = piecewiseJson;
-                }
-            }, prop.data);
-
-            propsJson[key] = propJson;
-        }
-
-        // 添加对混合物组分和反应式的特殊处理
-        if (properties.count("species")) {
-            std::visit([&](auto &&arg) {
-                using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, std::string>) {
-                    j["species"] = arg;
-                }
-            }, properties.at("species").data);
-        }
-        if (properties.count("reactions")) {
-            std::visit([&](auto &&arg) {
-                using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, std::string>) {
-                    j["reactions"] = arg;
-                }
-            }, properties.at("reactions").data);
-        }
-
-        j["properties"] = propsJson;
-
-        return j.dump();
-    }
-
-    // 从JSON字符串解析
-    void fromJson(const std::string &jsonStr) {
-        nlohmann::json j = nlohmann::json::parse(jsonStr);
-        name = j["name"].get<std::string>();
-        type.state = static_cast<MaterialState>(j["type"].get<int>());
-        description = j["description"].get<std::string>();
-
-        if (j.contains("properties")) {
-            nlohmann::json propsJson = j["properties"];
-            for (auto &[key, propJson]: propsJson.items()) {
-                MaterialProperty prop;
-                prop.name = propJson["name"].get<std::string>();
-                prop.unit = propJson["unit"].get<std::string>();
-                prop.type = propJson["type"].get<std::string>();
-
-                if (prop.type == "number") {
-                    prop.data = propJson["data"].get<double>();
-                } else if (prop.type == "string") {
-                    prop.data = propJson["data"].get<std::string>();
-                } else if (prop.type == "polynomial") {
-                    PolynomialData poly;
-                    poly.coefficients = propJson["data"]["coefficients"].get<std::vector<double>>();
-                    poly.min_temp = propJson["data"]["min_temp"].get<double>();
-                    poly.max_temp = propJson["data"]["max_temp"].get<double>();
-                    prop.data = poly;
-                } else if (prop.type == "nasa_polynomial") {
-                    NASAPolynomialData nasa;
-                    nasa.segments = propJson["data"]["segments"].get<std::array<std::vector<double>, 3>>();
-                    nasa.temp_ranges = propJson["data"]["temp_ranges"].get<std::array<double, 2>>();
-                    prop.data = nasa;
-                } else if (prop.type == "piecewise_polynomial") {
-                    PiecewisePolynomialData piecewise;
-                    piecewise.coefficients = propJson["data"]["coefficients"].get<std::vector<std::vector<double>>>();
-                    piecewise.temp_ranges = propJson["data"]["temp_ranges"].get<std::vector<double>>();
-                    prop.data = piecewise;
-                }
-                properties[key] = prop;
-            }
-        }
-
-        if (j.contains("species")) {
-            properties["species"] = {"species", "", j["species"].get<std::string>(), "string"};
-        }
-        if (j.contains("reactions")) {
-            properties["reactions"] = {"reactions", "", j["reactions"].get<std::string>(), "string"};
-        }
-    }
 
     // 解析SCM格式的热力学数据
     void parseScmThermoData(const std::string &thermoBlock);
 
     // 获取属性
-    const MaterialProperty &getProperty(const std::string &key) const {
+    const std::vector<MaterialProperty> &getProperty(const std::string &key) const {
         return properties.at(key);
     }
 
@@ -214,13 +150,14 @@ public:
     std::string name;
     MaterialType type;
     std::string description;
-    std::optional<std::string> chemical_formula;
-    std::optional<std::vector<std::string>> speciesName;
-    std::unordered_map<std::string, MaterialProperty> properties;
+    std::string chemical_formula;
+    std::vector<std::string> speciesName;
+    std::unordered_map<std::string, std::vector<MaterialProperty>> properties;
 
 private:
-
-
     void parseScmTransportData(const std::string &transportBlock);
 };
+
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Material, name, type, description, chemical_formula, speciesName,
+                                                properties)
 

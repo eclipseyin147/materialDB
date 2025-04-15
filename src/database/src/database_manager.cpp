@@ -1,7 +1,7 @@
 #include "database_manager.h"
 #include "material.h"
 #include <iostream>
-
+#include <nlohmann/json.hpp>
 using namespace CFD_MaterialDB;
 
 DatabaseManager::DatabaseManager(const std::string& dbPath) {
@@ -52,7 +52,7 @@ void DatabaseManager::insertMaterial(const Material& material) {
 
     sqlite3_bind_text(stmt, 1, material.name.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int(stmt, 2, static_cast<int>(material.type.state));
-    std::string json = material.toJson();
+    std::string json = nlohmann::json (material).dump();
     sqlite3_bind_text(stmt, 3, json.c_str(), -1, SQLITE_TRANSIENT);
 
     if (sqlite3_step(stmt) != SQLITE_DONE) {
@@ -85,7 +85,8 @@ Material DatabaseManager::getMaterialByName(const std::string& name) {
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         material.name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
         material.type.state = static_cast<MaterialState>(sqlite3_column_int(stmt, 2));
-        material.fromJson(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)));
+        ///< TODO
+        //material.fromJson(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)));
     } else {
         sqlite3_finalize(stmt);
         throw std::runtime_error("未找到材料: " + name);
@@ -104,7 +105,7 @@ void DatabaseManager::updateMaterial(const Material& material) {
     }
     
     sqlite3_bind_int(stmt, 1, static_cast<int>(material.type.state));
-    std::string json = material.toJson();
+    std::string json = nlohmann::json(material).dump();
     sqlite3_bind_text(stmt, 2, json.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 3, material.name.c_str(), -1, SQLITE_TRANSIENT);
     
@@ -136,14 +137,14 @@ void DatabaseManager::deleteMaterial(const std::string& name) {
 
 int DatabaseManager::callback(void* data, int argc, char** argv, char** colName) {
     Material* material = static_cast<Material*>(data);
-    for (int i = 0; i < argc; i++) {
-        if (strcmp(colName[i], "name") == 0) {
-            material->name = argv[i];
-        } else if (strcmp(colName[i], "type") == 0) {
-            material->type = static_cast<MaterialType>(atoi(argv[i]));
-        } else if (strcmp(colName[i], "properties") == 0) {
-            material->fromJson(argv[i]);
-        }
-    }
+//    for (int i = 0; i < argc; i++) {
+//        if (strcmp(colName[i], "name") == 0) {
+//            material->name = argv[i];
+//        } else if (strcmp(colName[i], "type") == 0) {
+//            material->type = static_cast<MaterialType>(atoi(argv[i]));
+//        } else if (strcmp(colName[i], "properties") == 0) {
+//            material->fromJson(argv[i]);
+//        }
+//    }
     return 0;
 }
