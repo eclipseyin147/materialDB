@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(unofficial-sqlite3 CONFIG REQUIRED)
 find_package(SQLiteCpp CONFIG REQUIRED)
 find_package(Boost 1.82 REQUIRED COMPONENTS filesystem spirit regex)
-
+find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
 include_directories(${SQLITECPP_INCLUDE_DIR} ${SQLite3_INCLUDE_DIRS})
 
 
@@ -39,6 +40,9 @@ target_link_libraries(material_db
         PRIVATE
         unofficial::sqlite3::sqlite3
         SQLiteCpp
+        CURL::libcurl
+        OpenSSL::SSL
+        OpenSSL::Crypto
         Boost::filesystem
         Boost::spirit
 )

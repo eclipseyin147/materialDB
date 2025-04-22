@@ -214,6 +214,7 @@ public:
 
     // 成员字段
     std::string name;
+    std::string chinese_name;
     MaterialType type;
     std::string description;
     std::string chemical_formula;
@@ -224,6 +225,6 @@ private:
     void parseScmTransportData(const std::string &transportBlock);
 };
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Material, name, type, description, chemical_formula, speciesName,
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(Material, name, chinese_name,type, description, chemical_formula, speciesName,
                                                 properties)
 

@@ -1622,7 +1622,7 @@
   (critical-volume (constant . 0.002326))
   )
 
- (vinoxy-radical-B
+ (vinoxy-radical-ch2hco
   fluid
   (chemical-formula . ch2hco)
   (specific-heat (polynomial piecewise-polynomial (300 1000 658.4667 2.0741757 0.00036534524 -1.3826937e-06 5.5384078e-10) (1000 5000 1154.2118 1.570439 -0.00052993612 7.8618687e-08 -4.2030176e-12)))
@@ -1893,7 +1893,7 @@ fluid
     (acentric-factor (constant . 1.53000E-01))
 	)
 
- (vinoxy-radical-A 
+ (vinoxy-radical-ch3co 
 fluid
 	(chemical-formula . ch3co)
 	(specific-heat (polynomial piecewise-polynomial (300 1000 603.65325 1.8886814 0.00087332606 -1.7401942e-06 6.1687237e-10) (1000 5000 1084.0221 1.6321112 -0.00055128378 8.1865021e-08 -4.3814626e-12)))
@@ -1992,7 +1992,7 @@ fluid
     (acentric-factor (constant . 2.00000E-01))
 	)
 
- (chloro-methanol-B
+ (chloro-methanol-ch3ocl
 fluid
 	(chemical-formula . ch3ocl)
 	(specific-heat (polynomial piecewise-polynomial (300 1500 197.00472 2.8207073 -0.0025668571 1.3446906e-06 -2.9651392e-10) (1500 5000 1278.6718 0.34764825 -4.1661851e-05 -6.8001086e-09 1.2665177e-12)))
@@ -2007,7 +2007,7 @@ fluid
     (critical-volume (constant . 0.002467))
 	)
 
-(chloro-methanol-A 
+(chloro-methanol-clch2oh 
   fluid
   (chemical-formula . clch2oh)
   (specific-heat (polynomial piecewise-polynomial (300 1500 104.17906 2.9499578 -0.0026727155 1.3828262e-06 -3.0042326e-10) (1500 5000 1219.274 0.37195057 -4.314871e-05 -7.5156396e-09 1.362788e-12)))
@@ -2473,7 +2473,7 @@ fluid
   (formation-entropy (constant .  0.3083040E+06))
   )
 
- (dichloro-methoxy-radical-A 
+ (dichloro-methoxy-radical-cl2hco 
   fluid
   (chemical-formula . cl2hco)
   (specific-heat (polynomial piecewise-polynomial (300 1500 186.48193 2.0443683 -0.0022318993 1.200807e-06 -2.5153903e-10) (1500 5000 875.19413 0.12475243 -2.4360032e-05 6.5722506e-10 1.6544996e-13)))
@@ -2483,7 +2483,7 @@ fluid
   (formation-entropy (constant .  0.2997843E+06))
   )
   
-  (dichloro-methoxy-radical-B
+  (dichloro-methoxy-radical-clh2co
   fluid
   (chemical-formula . clh2co)
   (specific-heat (polynomial piecewise-polynomial (300 1500 107.13627 2.868269 -0.002815631 1.4795324e-06 -3.158628e-10) (1500 5000 1156.0591 0.27053915 -3.8023837e-05 -3.4710887e-09 8.1742177e-13)))
@@ -2760,7 +2760,7 @@ fluid
   (critical-volume (constant . 0.003365))
   )
 
- (methyl-chloro-silylene-A
+ (methyl-chloro-silylene-clsich3
 fluid
 	(chemical-formula . clsich3)
 	(specific-heat (polynomial piecewise-polynomial (300 1500 368.85634 1.9393832 -0.0016639212 8.3086941e-07 -1.7671131e-10) (1500 4000 1060.3352 0.32775608 -3.4090383e-05 -1.2931938e-08 2.3845027e-12)))
@@ -2771,7 +2771,7 @@ fluid
 	)
 	
 	
-	 (methyl-chloro-silylene-B
+	 (methyl-chloro-silylene-ch3sicl
 fluid
 	(chemical-formula . ch3sicl)
 	(specific-heat (polynomial piecewise-polynomial (300 1500 368.78112 1.9397876 -0.0016646109 8.3131807e-07 -1.7681165e-10) (1500 4000 1060.2497 0.3278398 -3.4109826e-05 -1.293755e-08 2.3860933e-12)))
@@ -3776,7 +3776,7 @@ fluid
  (struct-poisson-ratio (constant . 0.3))
   )
 
-(methyl-methylene-silane-A
+(methyl-methylene-silane-h<ch3>sich2
  fluid
  (chemical-formula . h<ch3>sich2)
  (specific-heat (polynomial piecewise-polynomial (300 1500 172.45238 5.1285729 -0.0042489026 1.972465e-06 -3.8539807e-10) (1500 2500 1793.5451 1.0213078 -1.6397998e-05 -1.1581612e-07 2.2427627e-11)))
@@ -3786,7 +3786,7 @@ fluid
  (formation-entropy (constant .  0.2986499E+06))
  )
  
- (methyl-methylene-silane-B 
+ (methyl-methylene-silane-h2si<ch3>ch2 
  fluid
  (chemical-formula . h2si<ch3>ch2)
  (specific-heat (polynomial piecewise-polynomial (300 1500 278.31283 5.23761 -0.0041382749 1.8445406e-06 -3.5242972e-10) (1500 2500 1951.7239 1.1154634 -2.1917696e-05 -1.3104194e-07 2.595945e-11)))
@@ -3881,7 +3881,7 @@ fluid
   (critical-temperature (constant . 455.00))
  )
 
-(propargyl-radical-A
+(propargyl-radical-h2ccch
  fluid
  (chemical-formula . h2ccch)
  (specific-heat (polynomial piecewise-polynomial (300 1000 1012.0506 2.3587152 5.9462896e-05 -1.1663879e-06 4.1502749e-10) (1000 4000 1879.9101 0.92753815 -8.7471788e-05 -5.0424216e-08 9.3165215e-12)))
@@ -3891,7 +3891,7 @@ fluid
  (formation-entropy (constant .  0.2572543E+06))
  )
  
-  (propargyl-radical-B 
+  (propargyl-radical-c3h3 
   fluid
   (chemical-formula . c3h3)
   (specific-heat (polynomial piecewise-polynomial (300 1000 3.89236E+02 5.06317E+00 -4.66698E-03 2.13026E-06 -2.95874E-10) (1000 5000 1.41391E+03 1.72134E+00 -6.06263E-04 9.65477E-08 -5.72398E-12)))
@@ -3941,7 +3941,7 @@ fluid
  (formation-entropy (constant .  0.2588755E+06))
  )
 
-(vinyl-silylidene-A
+(vinyl-silylidene-h2cchsi
  fluid
  (chemical-formula . h2cchsi)
  (specific-heat (polynomial piecewise-polynomial (300 1500 248.21439 3.7120826 -0.0033967851 1.6677663e-06 -3.3314376e-10) (1500 2500 1415.6115 0.59444985 -1.9848509e-05 -6.1552799e-08 1.2020889e-11)))
@@ -3951,7 +3951,7 @@ fluid
  (formation-entropy (constant .  0.2759434E+06))
  )
  
- (vinyl-silylidene-B
+ (vinyl-silylidene-h2cchsih
  fluid
  (chemical-formula . h2cchsih)
  (specific-heat (polynomial piecewise-polynomial (300 1500 294.60332 3.9062255 -0.0032545588 1.4784028e-06 -2.8044072e-10) (1500 2500 1539.3702 0.73870076 -2.1932132e-05 -8.3677915e-08 1.6869628e-11)))
@@ -4279,7 +4279,7 @@ fluid
  (formation-entropy (constant .  0.2660661E+06))
  )
 
- (methylene-silane-A 
+ (methylene-silane-h2sich2 
   fluid
   (chemical-formula . h2sich2)
   (specific-heat (polynomial piecewise-polynomial (300 1500 197.78908 4.8275784 -0.0043793815 2.1522326e-06 -4.324835e-10) (1500 2500 1752.953 0.75477668 -1.8280126e-05 -7.5321309e-08 1.3848523e-11)))
@@ -4289,7 +4289,7 @@ fluid
   (formation-entropy (constant .  0.2504251E+06))
   )
   
-  (methylene-silane-B
+  (methylene-silane-h3sich2
   fluid
   (chemical-formula . h3sich2)
   (specific-heat (polynomial piecewise-polynomial (300 1500 220.98253 5.2097185 -0.0044103743 2.0327063e-06 -3.9158059e-10) (1500 2500 1934.4264 0.90397731 -2.8057282e-05 -1.0014339e-07 1.9939066e-11)))
@@ -5188,7 +5188,7 @@ fluid
  (formation-entropy (constant .  0.3593113E+06))
  )
 
-(vinyl-silylene-A
+(vinyl-silylene-hsicch
  fluid
  (chemical-formula . hsicch)
  (specific-heat (polynomial piecewise-polynomial (300 1500 583.72186 2.5096266 -0.0023830407 1.2105835e-06 -2.4885488e-10) (1500 2500 1397.6115 0.35224077 -1.9641154e-05 -2.8711045e-08 5.3988776e-12)))
@@ -5198,7 +5198,7 @@ fluid
  (formation-entropy (constant .  0.3593113E+06))
  )
  
- (vinyl-silylene-B
+ (vinyl-silylene-h2cchsih2
  fluid
  (chemical-formula . h2cchsih2)
  (specific-heat (polynomial piecewise-polynomial (300 1500 67.020667 5.5646718 -0.0050785983 2.410268e-06 -4.6276945e-10) (1500 2500 1876.6009 0.7807224 -3.4117743e-05 -8.1793889e-08 1.6632476e-11)))
@@ -6737,7 +6737,7 @@ fluid
  (species-phase (constant . 1))
  )
 
-(triamino-silane-A
+(triamino-silane-si<nh2>3
  fluid
  (chemical-formula . si<nh2>3)
  (specific-heat (polynomial piecewise-polynomial (300 1000 829.58023 2.658777 -0.00046905113 -1.9171738e-06 1.146481e-09) (1000 3000 1535.6446 0.82776033 -5.6428806e-05 -7.3625624e-08 1.5262287e-11)))
@@ -6747,7 +6747,7 @@ fluid
        (formation-entropy (constant .  0.3526380E+06))
  )
  
- (triamino-silane-B 
+ (triamino-silane-hsi<nh2>3 
  fluid
  (chemical-formula . hsi<nh2>3)
  (specific-heat (polynomial piecewise-polynomial (300 1000 761.91177 2.9679557 -0.00028055024 -2.0198813e-06 1.0536531e-09) (1000 4000 1790.1961 0.79691937 -6.9392315e-05 -4.2226746e-08 7.5921538e-12)))
@@ -6897,7 +6897,7 @@ fluid
        (formation-entropy (constant .  0.2294352E+06))
  )
 
-(methylene-silylene-A
+(methylene-silylene-sich2
  fluid
  (chemical-formula . sich2)
  (specific-heat (polynomial piecewise-polynomial (300 1500 551.67194 2.2483298 -0.0020566174 1.0598082e-06 -2.2364328e-10) (1500 2500 1233.1901 0.42403278 -1.2648076e-05 -4.0812853e-08 7.5849982e-12)))
@@ -6907,7 +6907,7 @@ fluid
        (formation-entropy (constant .  0.2339888E+06))
  )
  
- (methylene-silylene-B
+ (methylene-silylene-hsich2
  fluid
  (chemical-formula . hsich2)
  (specific-heat (polynomial piecewise-polynomial (300 1500 458.29607 3.5147352 -0.0031645782 1.5304968e-06 -3.0664262e-10) (1500 2500 1666.2372 0.48883313 -2.9555069e-05 -4.663042e-08 9.3900365e-12)))
@@ -7316,7 +7316,7 @@ fluid
        (formation-entropy (constant .  0.2173917E+06))
  )
 
-(silicon-nitride-hydride-A
+(silicon-nitride-hydride-sinh
  fluid
  (chemical-formula . sinh)
  (specific-heat (polynomial piecewise-polynomial (300 1000 610.92552 1.1199728 -0.00018373138 -7.7005644e-07 4.4043865e-10) (1000 3000 950.79079 0.31416999 -2.6373932e-05 -2.6822693e-08 5.7851627e-12)))
@@ -7326,7 +7326,7 @@ fluid
        (formation-entropy (constant .  0.2161616E+06))
  )
  
- (silicon-nitride-hydride-B
+ (silicon-nitride-hydride-hsin
  fluid
  (chemical-formula . hsin)
  (specific-heat (polynomial piecewise-polynomial (300 1000 938.51741 0.34242955 9.4347371e-05 7.5664755e-08 -1.5265115e-10) (1000 4000 1108.5467 0.22514315 -2.6249417e-05 -1.1398023e-08 2.266049e-12)))

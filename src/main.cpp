@@ -38,7 +38,11 @@ int main()
     
     // 插入材料数据
     CFD_MaterialDB::DatabaseManager dbManager("materials.db");
-    for (const auto& material : materials) {
+    for (auto& material : materials)
+    {
+        material.chinese_name = CFD_MaterialDB::DatabaseManager::TranslateText(material.name);
+        ///< translate name into chinese
+        std::cout<<"Chinese name: "<<material.chinese_name<<std::endl;
         dbManager.insertMaterial(material);
     }
     
