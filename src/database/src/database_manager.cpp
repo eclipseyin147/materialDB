@@ -24,6 +24,7 @@ void DatabaseManager::createTables() {
             "CREATE TABLE IF NOT EXISTS materials ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT,"
             "name TEXT UNIQUE NOT NULL,"
+            "chinese_name TEXT UNIQUE NOT NULL,"
             "type INTEGER NOT NULL,"
             "properties TEXT NOT NULL);";
 
@@ -46,20 +47,25 @@ void DatabaseManager::createTables() {
 
 void DatabaseManager::insertMaterial(const Material &material) {
     sqlite3_stmt *stmt;
-    const char *sql = "INSERT INTO materials (name, type, properties) VALUES (?, ?, ?);";
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
-        throw std::runtime_error("准备SQL语句失败: " + std::string(sqlite3_errmsg(db)));
+    const char *sql = "INSERT INTO materials (name, type, chinese_name, properties) VALUES (?, ?, ?, ?);";
+    try {
+        if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+            throw std::runtime_error("SQL preparation failed : " + std::string(sqlite3_errmsg(db)));
+        }
+        sqlite3_bind_text(stmt, 1, material.name.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, static_cast<int>(material.type.state));
+        sqlite3_bind_text(stmt, 3, material.chinese_name.c_str(), -1, SQLITE_TRANSIENT);
+        std::string json = nlohmann::json(material).dump();
+        sqlite3_bind_text(stmt, 4, json.c_str(), -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            sqlite3_finalize(stmt);
+            throw std::runtime_error("Material inserted failed: " + std::string(sqlite3_errmsg(db)));
+        }
+    }
+    catch (const std::exception &e) {
+        throw std::runtime_error("Material inserted failed : " + std::string(e.what()));
     }
 
-    sqlite3_bind_text(stmt, 1, material.name.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 2, static_cast<int>(material.type.state));
-    std::string json = nlohmann::json(material).dump();
-    sqlite3_bind_text(stmt, 3, json.c_str(), -1, SQLITE_TRANSIENT);
-
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        throw std::runtime_error("插入数据失败: " + std::string(sqlite3_errmsg(db)));
-    }
     sqlite3_finalize(stmt);
 }
 
@@ -142,16 +148,14 @@ int DatabaseManager::callback(void *contents, size_t size, size_t nmemb, std::st
     return newLength;
 }
 
-std::string DatabaseManager::TranslateText(const std::string &text)
-{
+std::string DatabaseManager::TranslateText(const std::string &text) {
     CURL *curl = curl_easy_init();
     std::string result;
     std::string BAIDU_APPID = "20250422002339827";
     std::string BAIDU_KEY = "2hEn69vKVRn_L9bhH2jw";
     std::string TRANSLATE_URL = "https://fanyi-api.baidu.com/api/trans/vip/translate";
-    
-    if (!curl)
-    {
+
+    if (!curl) {
         throw std::runtime_error("CURL failed");
     }
 
@@ -189,7 +193,7 @@ std::string DatabaseManager::TranslateText(const std::string &text)
         char *to = "zh";            //replace zh with your own language type of output text
         char salt[60];
         int a = rand();
-        //sprintf(salt, "%d", a);
+        sprintf(salt, "%d", a);
         char *secret_key = "2hEn69vKVRn_L9bhH2jw";   //replace mySecretKey with your own mySecretKey
         char sign[120] = "";
         strcat(sign, appid);
@@ -205,7 +209,7 @@ std::string DatabaseManager::TranslateText(const std::string &text)
             sprintf(tmp, "%2.2x", md[i]);
             strcat(buf, tmp);
         }
-       // printf("%s\n", buf);
+        printf("%s\n", buf);
         strcat(myurl, "appid=");
         strcat(myurl, appid);
         strcat(myurl, "&q=");
@@ -218,7 +222,7 @@ std::string DatabaseManager::TranslateText(const std::string &text)
         strcat(myurl, salt);
         strcat(myurl, "&sign=");
         strcat(myurl, buf);
-        //printf("%s\n", myurl);
+        printf("%s\n", myurl);
         curl_easy_setopt(curl, CURLOPT_URL, myurl);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &result);
@@ -232,23 +236,19 @@ std::string DatabaseManager::TranslateText(const std::string &text)
     }
 #endif
     // 解析JSON结果
-    try
-    {
+    try {
         auto json = nlohmann::json::parse(result);
-        if (json.contains("trans_result"))
-        {
-            result =  json["trans_result"][0]["dst"];
+        if (json.contains("trans_result")) {
+            result = json["trans_result"][0]["dst"];
         }
     }
-    catch (const std::exception& e)
-    {
-        std::cout<<"Translation failed: "<<e.what()<<"\n";
+    catch (const std::exception &e) {
+        std::cout << "Translation failed: " << e.what() << "\n";
     }
     return result;
 }
 
-std::string DatabaseManager::md5(const std::string &text)
-{
+std::string DatabaseManager::md5(const std::string &text) {
     uint8_t digest[MD5_DIGEST_LENGTH];
     MD5((const uint8_t *) text.c_str(), text.size(), digest);
 

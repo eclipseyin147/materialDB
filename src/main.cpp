@@ -31,6 +31,7 @@ int main()
     // 创建材料表
     const char* createTableSQL = "CREATE TABLE IF NOT EXISTS materials ("
                                 "name TEXT PRIMARY KEY,"
+                                "chinese_name TEXT,"
                                 "type TEXT,"
                                 "properties TEXT"
                                 ");";
