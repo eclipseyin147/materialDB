@@ -88,7 +88,7 @@ struct scm_file_class;
 
 
 auto const symbol = x3::rule<struct symbol_, std::string>{"symbol"}
-                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{}") | x3::char_("<>") |
+                            = x3::lexeme[+(x3::alnum | x3::char_("-<>=+_.*/:[]{},.") | x3::char_("<>") |
                                            x3::char_("<s>") | x3::char_("<l>") | x3::char_("<g>"))];
 
 auto const string_lit = x3::rule<struct string_, std::string>{"string"}
