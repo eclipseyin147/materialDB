@@ -27,14 +27,14 @@ void init_symbols() {
             ("compressible-liquid", compressibleT)
             ("sutherland", sutherlandT)
             ("power-law", powerLawT)
-            ("blottner-curve-fit", blottnerT);
+            ("blottner-curve-fit", blottnerT)
+            ("averaging-coefficient", AVERAGING_COEFF);
 
     binDiff_type_symbols.add
             ("constant", CONSTANT_DIFFUSION)
             ("film-averaged", FILM_AVERAGED_DIFFUSION);
 
     binDiff_param_symbols.add
-            ("averaging-coefficient", AVERAGING_COEFF)
             ("film-diffusivity", FILM_DIFFUSIVITY);
 }
 
@@ -170,37 +170,6 @@ auto const poly_piece = x3::rule<class poly_piece_, std::vector<double>>{}
                 })]
         );
 
-// Rule for parsing a piecewise polynomial (a vector of polynomial pieces)
-auto const piecewise_poly = x3::rule<class piecewise_poly_, std::vector<std::vector<double>>>{}
-                                    = +poly_piece;
-
-// Rule for parsing a NASA-9 piecewise polynomial
-auto const nasa9_poly = x3::rule<class nasa9_poly_, std::vector<std::vector<double>>>{}
-                                = +poly_piece;
-
-
-auto const piecewise_linear = x3::rule<class piecewise_linear_, std::vector<std::vector<double>>>{}
-                                      = x3::lit("polynomial") >> x3::lit("piecewise-linear") >> '(' >>
-                                                              *temp_value_pair[([](auto &ctx) {
-                                                                  // Extract each temp-value pair and organize into two vectors
-                                                              })] >> ')';
-
-auto const piecewise_linear_data = x3::rule<class piecewise_linear_data_, std::vector<std::vector<double>>>{}
-                                           = '(' >> *(temp_value_pair[([](auto &ctx) {
-            auto &pairs = x3::_val(ctx);
-            auto pair = x3::_attr(ctx);
-
-            // If the vectors don't exist yet, create them
-            if (pairs.size() < 2) {
-                pairs.resize(2);
-            }
-
-            // Store temperature in the first vector and value in the second
-            pairs[0].push_back(pair.first);
-            pairs[1].push_back(pair.second);
-        })]) >> ')';
-
-
 auto const comment = x3::lexeme[';' >> *(x3::char_ - x3::eol) >> (x3::eol | x3::eoi)];
 
 
@@ -230,20 +199,6 @@ auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                             std::cout << "Parsed parameter with boolean value: " << (x3::_attr(ctx) ? "#t" : "#f")
                                       << std::endl;
                         })]))
-                        // 处理多项式类型 - 先处理可能的子类型关键字，然后解析多项式数据
-                        //                        | ((x3::lit("piecewise-polynomial") | x3::lit("nasa-9-piecewise-polynomial") | x3::lit("polynomial piecewise-linear")) >>
-                        //                                                                                                      (+poly_piece)[([](
-                        //                                                                                                              auto &ctx) {
-                        //                                                                                                          auto &param = x3::_val(
-                        //                                                                                                                  ctx);
-                        //                                                                                                          param.values = x3::_attr(
-                        //                                                                                                                  ctx);
-                        //                                                                                                          std::cout
-                        //                                                                                                                  << "********Parsed polynomial structure with "
-                        //                                                                                                                  << param.values.size()
-                        //                                                                                                                  << " pieces"
-                        //                                                                                                                  << std::endl;
-                        //                                                                                                      })])
                         // 处理普通数值列表 - 用于 compressible-liquid 等类型
                         | (+x3::double_)[([](auto &ctx) {
                             auto &param = x3::_val(ctx);
@@ -275,6 +230,14 @@ auto const parameter = x3::rule<parameter_class, Parameter>{"parameter"}
                 >> ')';
 
 // 定义简化参数规则
+
+auto const nested_parameter = x3::rule<class nested_parameter_, Parameter>{"nested_parameter"}
+                                      = parameter[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param = x3::_attr(ctx);  // Just copy the parameter data directly
+            std::cout << "Captured nested parameter of type: " << static_cast<int>(param.coeff) << std::endl;
+        })];
+
 
 auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simple_parameter"}
                                       = ('.' >> (x3::double_[([](auto &ctx) {
@@ -311,6 +274,101 @@ auto const simple_parameter = x3::rule<simple_parameter_class, Parameter>{"simpl
             std::cout << "Parsed simple parameter with coefficient type and inline values: "
                       << static_cast<int>(param.coeff) << std::endl;
         })];
+
+
+auto const averaging_coefficient_param = x3::rule<class averaging_coefficient_param_, Parameter>{"averaging_coefficient_param"}
+    = '(' >> x3::lit("averaging-coefficient") >> x3::double_[([](auto &ctx) {
+        auto &param = x3::_val(ctx);
+        param.coeff = AVERAGING_COEFF;
+        param.string_value = "averaging-coefficient";
+        param.values = {{x3::_attr(ctx)}};
+        std::cout << "Parsed averaging coefficient: " << x3::_attr(ctx) << std::endl;
+    })] >> ')';
+
+auto const film_diffusivity_param = x3::rule<class film_diffusivity_param_, Parameter>{"film_diffusivity_param"}
+    = '(' >> x3::lit("film-diffusivity") >>
+        (
+            // Direct parameter case (like constant)
+            parameter[([](auto &ctx) {
+                auto &param = x3::_val(ctx);
+                param.string_value = "film-diffusivity";
+                param.coeff = x3::_attr(ctx).coeff;
+                param.values = x3::_attr(ctx).values;
+                std::cout << "Parsed film-diffusivity with direct parameter" << std::endl;
+            })]
+            |
+            // Multiple parameters inside parentheses
+            (*nested_parameter)[([](auto &ctx) {
+                auto &param = x3::_val(ctx);
+                param.string_value = "film-diffusivity";
+
+                // Store all nested parameters for later processing
+                auto nested_params = x3::_attr(ctx);
+                for (const auto &np : nested_params) {
+                    // Record the coefficient type of each nested parameter
+                    param.particleTypes.insert(std::to_string(static_cast<int>(np.coeff)));
+
+                    // If it's a piecewise-linear polynomial, store the temperature-value pairs
+                    if (np.coeff == polynomialTPieceLinearT) {
+                        param.values = np.values;  // Store all temp-value pairs
+                    } else if (np.coeff == CONSTCOEFF) {
+                        // For constant values, add to the end of values
+                        param.values.push_back(np.values[0]);
+                    }
+                }
+
+                std::cout << "Parsed film-diffusivity with " << nested_params.size() << " nested parameters" << std::endl;
+            })]
+        ) >> ')';
+
+// Rule for film-averaged binary diffusion with its parameters
+auto const film_averaged_param = x3::rule<class film_averaged_param_, Parameter>{"film_averaged_param"}
+    = '(' >> x3::lit("film-averaged") >> '(' >>
+        (
+            // Accept both parameters in any order, but make sure they're correctly stored
+            *(averaging_coefficient_param | film_diffusivity_param)
+        )[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param.coeff = static_cast<coefficientType>(static_cast<int>(FILM_AVERAGED_DIFFUSION));
+            param.string_value = "film-averaged";
+
+            // Process the list of parameters
+            auto params = x3::_attr(ctx);
+            for (const auto &variant_param : params) {
+                // Handle the variant type correctly using boost::get
+                const Parameter &p = boost::get<Parameter>(variant_param);
+
+                if (p.string_value == "averaging-coefficient") {
+                    // Store the averaging coefficient
+                    if (!p.values.empty() && !p.values[0].empty()) {
+                        param.values.push_back(p.values[0]);
+                    }
+                    param.particleTypes.insert("averaging-coefficient");
+                }
+                else if (p.string_value == "film-diffusivity") {
+                    // Store film diffusivity data
+                    for (const auto &v : p.values) {
+                        param.values.push_back(v);
+                    }
+                    for (const auto &type : p.particleTypes) {
+                        param.particleTypes.insert(type);
+                    }
+                    param.particleTypes.insert("film-diffusivity");
+                }
+            }
+
+            std::cout << "Parsed film-averaged with " << params.size() << " parameters" << std::endl;
+        })] >> ')' >> ')';
+
+// Rule for constant binary diffusivity
+auto const constant_binary_diffusivity = x3::rule<class constant_binary_diffusivity_, Parameter>{
+        "constant_binary_diffusivity"}
+                                                 = '(' >> x3::lit("constant") >> '.' >> x3::double_[([](auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param.coeff = CONSTCOEFF;
+            param.values = {{x3::_attr(ctx)}};
+            std::cout << "Parsed constant binary diffusivity: " << x3::_attr(ctx) << std::endl;
+        })] >> ')';
 
 // 定义化学式属性规则
 auto const chemical_formula_property = x3::rule<chemical_formula_property_class, Property>{"chemical_formula_property"}
@@ -413,7 +471,119 @@ auto const material_type_property = x3::rule<class material_type_property_, Prop
             }
         })] >> ')';
 
-// 定义属性规则
+auto const binary_diffus_param = x3::rule<class binary_diffus_param_, Parameter>{"binary_diffus_param"}
+                                         = (binDiff_param_symbols >>
+                                                                  // 处理averaging-coefficient参数，它是一个简单值
+                                                                  ((x3::lit("averaging-coefficient")
+                                                                          >> simple_parameter)[([](auto &ctx) {
+                                                                      auto &param = x3::_val(ctx);
+                                                                      param.coeff = CONSTCOEFF;
+                                                                      param.string_value = "averaging-coefficient";
+
+                                                                      // 复制简单参数的值
+                                                                      auto simple_param = x3::_attr(ctx);
+                                                                      param.values = simple_param.values;
+
+                                                                      std::cout
+                                                                              << "Parsed averaging-coefficient parameter with value: "
+                                                                              << param.values[0][0] << std::endl;
+                                                                  })] |
+                                                                   // 处理film-diffusivity参数，它可以包含嵌套的多项式和常量
+                                                                   (x3::lit("film-diffusivity") >> '(' >>
+                                                                                                *(parameter[([](
+                                                                                                        auto &ctx) {
+                                                                                                    auto &param = x3::_val(
+                                                                                                            ctx);
+                                                                                                    if (param.string_value.empty()) {
+                                                                                                        param.string_value = "film-diffusivity";
+                                                                                                        param.coeff = CONSTCOEFF;
+                                                                                                        // 创建一个占位符值
+                                                                                                        param.values.push_back(
+                                                                                                                {-999.0});
+                                                                                                    }
+                                                                                                    // 将子参数存储在particleTypes集合中（临时使用此字段存储子参数信息）
+                                                                                                    auto sub_param = x3::_attr(
+                                                                                                            ctx);
+                                                                                                    std::string param_info = std::to_string(
+                                                                                                            static_cast<int>(sub_param.coeff));
+                                                                                                    if (!sub_param.values.empty() &&
+                                                                                                        !sub_param.values[0].empty()) {
+                                                                                                        param_info +=
+                                                                                                                ":" +
+                                                                                                                std::to_string(
+                                                                                                                        sub_param.values[0][0]);
+                                                                                                    }
+                                                                                                    param.particleTypes.insert(
+                                                                                                            param_info);
+
+                                                                                                    std::cout
+                                                                                                            << "Added nested parameter to film-diffusivity"
+                                                                                                            << std::endl;
+                                                                                                })]) >> ')')[([](
+                                                                           auto &ctx) {
+                                                                       auto &param = x3::_val(ctx);
+                                                                       param.string_value = "film-diffusivity";
+                                                                       param.coeff = CONSTCOEFF;
+                                                                       if (param.values.empty()) {
+                                                                           // 创建一个占位符值
+                                                                           param.values.push_back({-999.0});
+                                                                       }
+                                                                       std::cout
+                                                                               << "Parsed film-diffusivity parameter with nested structure"
+                                                                               << std::endl;
+                                                                   })]));
+
+
+auto const film_averaged_diffusivity = x3::rule<class film_averaged_diffusivity_, Parameter>{
+        "film_averaged_diffusivity"}
+                                               = (x3::lit("film-averaged") >> '(' >> *binary_diffus_param >> ')')[([](
+                auto &ctx) {
+            auto &param = x3::_val(ctx);
+            param.coeff = CONSTCOEFF; // 使用常量类型
+            param.string_value = "film-averaged";
+
+            // 获取子参数列表
+            auto sub_params = x3::_attr(ctx);
+
+            // 创建一个嵌套的值结构来存储子参数
+            std::vector<double> placeholder = {-999.0}; // 占位符
+            param.values.push_back(placeholder);
+
+            // 将子参数存储在particleTypes集合中（临时使用此字段存储子参数信息）
+            for (const auto &sub_param: sub_params) {
+                for (const auto &type: sub_param.particleTypes) {
+                    param.particleTypes.insert(type);
+                }
+                if (sub_param.particleTypes.empty()) {
+                    param.particleTypes.insert(sub_param.string_value);
+                }
+            }
+
+            std::cout << "Parsed film-averaged diffusivity with " << sub_params.size() << " parameters" << std::endl;
+        })];
+
+// 定义binary-diffusivity属性规则
+auto const binary_diffusivity_property = x3::rule<class binary_diffusivity_property_, Property>{"binary_diffusivity_property"}
+    = '(' >> x3::lit("binary-diffusivity") >>
+        (
+            // Handle any combination of film_averaged_param and constant_binary_diffusivity
+            *(film_averaged_param | constant_binary_diffusivity)
+        )[([](auto &ctx) {
+            auto &prop = x3::_val(ctx);
+            prop.name = "binary-diffusivity";
+
+            // Add all parameters
+            auto params = x3::_attr(ctx);
+            for (const auto &variant_param : params) {
+                // Use boost::get to extract the Parameter from the variant
+                const Parameter &p = boost::get<Parameter>(variant_param);
+                prop.parameters.push_back(p);
+            }
+
+            std::cout << "Parsed binary-diffusivity with " << prop.parameters.size() << " parameters" << std::endl;
+        })] >> ')';
+
+
 // 定义属性规则
 // Update the property rule to include the fluid_property
 auto const property = x3::rule<property_class, Property>{"property"}
@@ -448,6 +618,14 @@ auto const property = x3::rule<property_class, Property>{"property"}
                         std::cout << "Parsed material type property with " << prop.parameters.size() << " parameters"
                                   << std::endl;
                     }
+                })]
+                | binary_diffusivity_property[([](auto &ctx) {
+                    auto &prop = x3::_val(ctx);
+                    const Property &parsed = x3::_attr(ctx);
+                    prop.name = parsed.name;
+                    prop.parameters = parsed.parameters;
+                    std::cout << "Parsed binary-diffusivity property with " << prop.parameters.size() << " parameters"
+                              << std::endl;
                 })]
                 | (symbol >> *parameter)[([](auto &ctx) {
                     auto &prop = x3::_val(ctx);
@@ -800,8 +978,7 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
             }
 
         } else {
-            if (key == "fluid")
-            {
+            if (key == "fluid") {
                 // Ensure the material state is set to FLUID
                 material.type.state = MaterialState::FLUID;
 
@@ -832,6 +1009,92 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
                     mp.name = "fluid";
                     mp.unit = "";
                     material.properties["fluid"].push_back(mp);
+                }
+                continue;
+            }
+            // 处理binary-diffusivity属性
+            if (key == "binary-diffusivity") {
+                for (const auto &param: prop.parameters) {
+                    if (param.string_value == "film-averaged") {
+                        // 处理film-averaged类型的binary-diffusivity
+                        // 创建一个MaterialProperty来存储film-averaged diffusivity数据
+                        MaterialProperty mp;
+                        mp.name = "binary-diffusivity";
+                        mp.unit = "";
+                        //mp.coeffType = FILM_AVERAGED_DIFFUSION;
+
+                        // 查找averaging-coefficient和film-diffusivity子参数
+                        double averaging_coeff = 0.3333; // 默认值
+                        MaterialProperty film_diff_prop;
+                        film_diff_prop.name = "film-diffusivity";
+                        film_diff_prop.unit = "";
+                        film_diff_prop.coeffType = CONSTCOEFF;
+                        film_diff_prop.constData = 0.0;
+
+                        // 从particleTypes集合中提取子参数信息
+                        for (const auto &info: param.particleTypes) {
+                            if (info.find("averaging-coefficient") != std::string::npos) {
+                                // 提取averaging-coefficient值
+                                for (const auto &sub_param: prop.parameters) {
+                                    if (sub_param.string_value == "averaging-coefficient") {
+                                        if (!sub_param.values.empty() && !sub_param.values[0].empty()) {
+                                            averaging_coeff = sub_param.values[0][0];
+                                        }
+                                        break;
+                                    }
+                                }
+                            } else if (info.find("film-diffusivity") != std::string::npos) {
+                                // 提取film-diffusivity参数
+                                for (const auto &sub_param: prop.parameters) {
+                                    if (sub_param.string_value == "film-diffusivity") {
+                                        // 处理film-diffusivity的子参数
+                                        for (const auto &sub_info: sub_param.particleTypes) {
+                                            size_t colon_pos = sub_info.find(':');
+                                            if (colon_pos != std::string::npos) {
+                                                int coeff_type = std::stoi(sub_info.substr(0, colon_pos));
+                                                double value = std::stod(sub_info.substr(colon_pos + 1));
+
+                                                if (coeff_type == CONSTCOEFF) {
+                                                    film_diff_prop.coeffType = CONSTCOEFF;
+                                                    film_diff_prop.constData = value;
+                                                } else if (coeff_type == polynomialTPieceLinearT) {
+                                                    film_diff_prop.coeffType = polynomialTPieceLinearT;
+                                                    // 这里需要更复杂的处理来提取piecewise-linear数据
+                                                    // 但由于我们没有完整的数据结构，这里简化处理
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // 存储film-averaged diffusivity数据
+                        // 由于我们没有直接的FilmAveragedDiffusivityData字段，
+                        // 我们将数据存储在MaterialProperty的constData和其他字段中
+                        mp.constData = averaging_coeff; // 存储averaging_coefficient
+
+                        // 将film-diffusivity作为一个单独的MaterialProperty添加到properties中
+                        material.properties["binary-diffusivity"].push_back(mp);
+                        material.properties["film-diffusivity"].push_back(film_diff_prop);
+
+                        std::cout << "Processed film-averaged binary-diffusivity with averaging coefficient: "
+                                  << averaging_coeff << std::endl;
+                    } else {
+                        // 处理常规binary-diffusivity参数
+                        MaterialProperty mp;
+                        mp.name = "binary-diffusivity";
+                        mp.unit = "";
+                        mp.coeffType = param.coeff;
+
+                        if (!param.values.empty() && !param.values[0].empty()) {
+                            mp.constData = param.values[0][0];
+                        }
+
+                        material.properties["binary-diffusivity"].push_back(mp);
+                        std::cout << "Processed regular binary-diffusivity parameter" << std::endl;
+                    }
                 }
                 continue;
             }
@@ -873,3 +1136,11 @@ void ScmParser::processProperties(Material &material, const MaterialData &mat_da
 
     }
 }
+
+
+// 定义binary-diffusivity参数规则
+
+
+// 定义film-averaged类型的binary-diffusivity规则
+
+

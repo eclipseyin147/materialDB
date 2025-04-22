@@ -57,14 +57,12 @@ NLOHMANN_JSON_SERIALIZE_ENUM(binaryDiffusModelType,
 enum binaryDiffusModelParam
 {
     INVALID_DIFFUSION_PARAM = -1,
-    AVERAGING_COEFF,
     FILM_DIFFUSIVITY
 };
 
 NLOHMANN_JSON_SERIALIZE_ENUM(binaryDiffusModelParam,
                              {
                                  { INVALID_DIFFUSION_PARAM, nullptr },
-                                 { AVERAGING_COEFF, "averaging-coefficient" },
                                  { FILM_DIFFUSIVITY, "film-diffusivity" }
                              })
 
@@ -125,6 +123,7 @@ enum coefficientType {
     NONET = 0,
     CONSTCOEFF,
     compressibleT,
+    AVERAGING_COEFF,
     sutherlandT,
     powerLawT,
     blottnerT,
@@ -138,6 +137,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(coefficientType,
                              {
                                  { NONET, nullptr },
                                  { CONSTCOEFF, "constant" },
+                                 {AVERAGING_COEFF,"averaging-coefficient"},
                                  { compressibleT, "compressible-liquid" },
                                  { sutherlandT, "sutherland" },
                                  { powerLawT, "power-law" },
