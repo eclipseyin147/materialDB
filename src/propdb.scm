@@ -63,21 +63,6 @@
   (critical-volume (constant . 0.002857)) 
   )
 
- (aluminum-solid
-  fluid
-  (chemical-formula . al<s>)
-  (density (constant . 2719)) 
-  (specific-heat (polynomial piecewise-polynomial (300 600 843.35167 -0.1821896 -0.00012430563 7.1562918e-07 -5.2557973e-10) (600 5000 788.73643 -0.032763207 2.2195489e-05 -6.5361777e-09 7.0548676e-13)))
-  (molecular-weight (constant . 26.9815))
-  (formation-enthalpy (constant . 3.2971232e+08))
-  (reference-temperature (constant . 298))
-  (formation-entropy (constant .  0.1644514E+06))
-  (species-phase (constant . 1))
-; Critical Properties Bhatt et al. (2006) - acentric factor missing   
-  (critical-pressure (constant . 9.123E+07))
-  (critical-temperature (constant . 6299.00))
-  (critical-volume (constant . 0.001410)) 
-  )
 
  (aluminum-trihydride-dimer 
   fluid

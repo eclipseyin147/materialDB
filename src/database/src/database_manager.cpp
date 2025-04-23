@@ -15,22 +15,21 @@ DatabaseManager::~DatabaseManager() {
     sqlite3_close(db);
 }
 
-void DatabaseManager::createTables() {
+void DatabaseManager::createTables()
+{
     // 检查表是否存在
     const char *checkTableSql = "SELECT name FROM sqlite_master WHERE type='table' AND name='materials';";
-
     // 创建表SQL
     const char *createTableSql =
             "CREATE TABLE IF NOT EXISTS materials ("
             "id INTEGER PRIMARY KEY AUTOINCREMENT,"
             "name TEXT UNIQUE NOT NULL,"
-            "chinese_name TEXT UNIQUE NOT NULL,"
+            "chinese_name TEXT NOT NULL,"
             "type INTEGER NOT NULL,"
             "properties TEXT NOT NULL);";
 
     // 检查表结构SQL
     const char *checkSchemaSql = "PRAGMA table_info(materials);";
-
     try {
         // 执行表检查
         executeSQL(checkTableSql);
@@ -47,17 +46,18 @@ void DatabaseManager::createTables() {
 
 void DatabaseManager::insertMaterial(const Material &material) {
     sqlite3_stmt *stmt;
-    const char *sql = "INSERT INTO materials (name, type, chinese_name, properties) VALUES (?, ?, ?, ?);";
+    const char *sql = "INSERT INTO materials (name, chinese_name, type, properties) VALUES (?, ?, ?, ?);";
     try {
         if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
             throw std::runtime_error("SQL preparation failed : " + std::string(sqlite3_errmsg(db)));
         }
         sqlite3_bind_text(stmt, 1, material.name.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int(stmt, 2, static_cast<int>(material.type.state));
-        sqlite3_bind_text(stmt, 3, material.chinese_name.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, 2, material.chinese_name.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 3, static_cast<int>(material.type.state));
         std::string json = nlohmann::json(material).dump();
         sqlite3_bind_text(stmt, 4, json.c_str(), -1, SQLITE_TRANSIENT);
-        if (sqlite3_step(stmt) != SQLITE_DONE) {
+        if (sqlite3_step(stmt) != SQLITE_DONE)
+        {
             sqlite3_finalize(stmt);
             throw std::runtime_error("Material inserted failed: " + std::string(sqlite3_errmsg(db)));
         }
@@ -86,19 +86,21 @@ Material DatabaseManager::getMaterialByName(const std::string &name) {
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
         throw std::runtime_error("准备SQL语句失败: " + std::string(sqlite3_errmsg(db)));
     }
-
     sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_TRANSIENT);
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
-        material.name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
-        material.type.state = static_cast<MaterialState>(sqlite3_column_int(stmt, 2));
-        ///< TODO
-        //material.fromJson(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)));
+        if (sqlite3_column_type(stmt, 3) == SQLITE_TEXT)
+        {
+            std::string value = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+            material = nlohmann::json::parse(value);
+            material.chinese_name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+        }
     } else {
         sqlite3_finalize(stmt);
-        throw std::runtime_error("未找到材料: " + name);
+        std::cout << "Material not found with name : " << name << std::endl;
+        material.name = name;
+        material.chinese_name = name; // 默认使用英文名作为中文名
     }
-
     sqlite3_finalize(stmt);
     return material;
 }

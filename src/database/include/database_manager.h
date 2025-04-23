@@ -1,7 +1,11 @@
 #pragma once
+#define SQLITE_INTEGER  1
 #include <string>
-#include <sqlite3.h>
+//#include <sqlite3.h>
+
 #include "material.h"
+
+#include "sqlcipher/sqlite3.h"
 #include <openssl/md5.h>
 #include <curl/curl.h>
 #include <sstream>

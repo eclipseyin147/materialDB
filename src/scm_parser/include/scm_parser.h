@@ -1,5 +1,5 @@
 #pragma once
-
+#include <sqlcipher/sqlite3.h>
 #include <string>
 #include <vector>
 #include <map>
@@ -13,6 +13,7 @@
 #include <boost/spirit/home/x3/support/ast/variant.hpp>
 #include <boost/spirit/home/x3/string/symbols.hpp>
 #include <boost/spirit/home/x3/support/utility/error_reporting.hpp>
+
 
 namespace x3 = boost::spirit::x3;
 
